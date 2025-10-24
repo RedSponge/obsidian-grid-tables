@@ -3,6 +3,7 @@ import { EditorState, Extension, RangeSetBuilder, StateEffect, StateField, Trans
 import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from '@codemirror/view'
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableContent } from 'src/TableData';
+import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
 
 // Remember to rename these classes and interfaces!
 
@@ -81,7 +82,7 @@ export class GridTableWidget extends WidgetType {
 	from: number
 	to: number
 	file: TFile
-	editors: any[]
+	newEditors: ObsidianEditorAdapter[]
 
 	constructor(table: TableContent, file: TFile, originalFrom: number, originalTo: number) {
 		super()
@@ -89,7 +90,7 @@ export class GridTableWidget extends WidgetType {
 		this.from = originalFrom;
 		this.to = originalTo;
 		this.file = file;
-		this.editors = [];
+		this.newEditors = [];
 	}
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
 		return true;
@@ -113,14 +114,13 @@ export class GridTableWidget extends WidgetType {
 
 				const containingDiv = document.createElement("div");
 
-				const extensions = view.state.config;
+				if (!globalPlugin) {
+					throw new Error("globalPlugin isn't set");
+				}
 
-				const MarkdownEditor = getMarkdownEditorClass(globalApp);
-				const TableCellEditor = getTableCellEditorClass(MarkdownEditor);
-				const controller = getMarkdownController(globalApp, this.file, () => editor.editor)
-				const editor = new TableCellEditor(globalApp, containingDiv, controller);
-
-				editor.onChange = (up: ViewUpdate) => {
+				const editor = new ObsidianEditorAdapter(globalApp, globalPlugin);
+				editor.mount(containingDiv, this.file);
+				editor.setChangeHandler((up: ViewUpdate) => {
 					if (up.docChanged) {
 						const newContent = up.state.doc.toString();
 						cell.content = newContent;
@@ -133,12 +133,9 @@ export class GridTableWidget extends WidgetType {
 						})
 						this.to = this.from + newTableRepr.length;
 					}
-				}
-				globalPlugin?.addChild(editor);
-				this.editors.push(editor);
-
-				controller.editMode = editor;
-				editor.set(cell.content);
+				});
+				editor.setContent(cell.content);
+				this.newEditors.push(editor);
 
 				td.appendChild(containingDiv);
 				tr.appendChild(td);
@@ -151,10 +148,10 @@ export class GridTableWidget extends WidgetType {
 		return div;
 	}
 	destroy(dom: HTMLElement): void {
-		for (const editor of this.editors) {
-			globalPlugin?.removeChild(editor);
+		for (const newEditor of this.newEditors) {
+			newEditor.unmount();
 		}
-		this.editors = [];
+		this.newEditors = [];
 	}
 }
 
