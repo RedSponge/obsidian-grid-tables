@@ -16,68 +16,6 @@ const DEFAULT_SETTINGS: GridTablePluginSettings = {
 	mySetting: 'default'
 }
 
-
-function getMarkdownEditorClass(app: any) {
-	const md = app.embedRegistry.embedByExtension.md(
-		{ app: app, containerEl: createDiv(), state: {} },
-		null,
-		''
-	);
-
-	md.load();
-	md.editable = true;
-	md.showEditor();
-
-	const MarkdownEditor = Object.getPrototypeOf(Object.getPrototypeOf(md.editMode)).constructor;
-
-	md.unload();
-
-	return MarkdownEditor;
-}
-
-function getTableCellEditorClass(superclass: any) {
-	class TableCellEditor extends superclass {
-		isCellEditor = true;
-
-		updateBottomPadding() { }
-		onUpdate(update: ViewUpdate, changed: boolean) {
-			super.onUpdate(update, changed)
-			this.onChange && this.onChange(update);
-		}
-		buildLocalExtensions(): Extension[] {
-			const extensions = super.buildLocalExtensions();
-			// TODO: Hook into events here like Kanban does, to handle paste and so on.
-			return extensions;
-		}
-	}
-
-	return TableCellEditor
-}
-
-function noop() { }
-
-function getMarkdownController(app: any, file: TFile, getEditor: () => Editor) {
-	return {
-		app,
-		showSearch: noop,
-		toggleMode: noop,
-		onMarkdownScroll: noop,
-		getMode: () => 'source',
-		scroll: 0,
-		editMode: null,
-		get editor() {
-			return getEditor()
-		},
-		get file() {
-			// TODO
-			return file;
-		},
-		get path() {
-			return file.path;
-		}
-	}
-}
-
 export class GridTableWidget extends WidgetType {
 	table: TableContent
 	from: number
