@@ -123,7 +123,6 @@ export class GridTableWidget extends WidgetType {
 				editor.onChange = (up: ViewUpdate) => {
 					if (up.docChanged) {
 						const newContent = up.state.doc.toString();
-						console.log(`Edit in cell originally containing ${cell.content}. It now contains ${newContent}! Syncing!`);
 						cell.content = newContent;
 
 						const from = this.from;
@@ -132,13 +131,9 @@ export class GridTableWidget extends WidgetType {
 						view.dispatch({
 							changes: { from: from, to: to, insert: newTableRepr }
 						})
-						console.log(`Previous: ${this.from} to=${this.to}`)
 						this.to = this.from + newTableRepr.length;
-						console.log(`New: ${this.to}`)
-						console.log(up.state.doc.toString());
 					}
 				}
-				// editor.editor.removeHighlights = () => { console.log("Should remove highlights! ") };
 				globalPlugin?.addChild(editor);
 				this.editors.push(editor);
 
@@ -201,10 +196,7 @@ const tableField = StateField.define<DecorationSet>({
 
 			// If range is already part of previous table.
 			if (tableStartLine <= scannedUpTo) {
-				// console.log(`Skipping ${lineIndex} because it's less than ${scannedUpTo}`)
 				continue;
-			} else {
-				// console.log(`Not skipping ${lineIndex}`)
 			}
 
 			const parts = lookAheadForTableParts(
@@ -214,7 +206,6 @@ const tableField = StateField.define<DecorationSet>({
 					tr.startState.doc.lines
 				)
 			);
-			console.log(parts);
 
 			let table: TableContent | null = null;
 
