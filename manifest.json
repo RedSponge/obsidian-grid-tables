@@ -1,6 +1,6 @@
 {
-	"id": "obsidian-grib-tables",
-	"name": "Obsidian Grib Tables",
+	"id": "obsidian-grid-tables",
+	"name": "Obsidian Grid Tables",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Demonstrates some of the capabilities of the Obsidian API.",

@@ -14,42 +14,6 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: 'default'
 }
 
-const addEffect = StateEffect.define<number>();
-const subtractEffect = StateEffect.define<number>();
-const resetEffect = StateEffect.define();
-
-export const calculatorField = StateField.define<number>({
-	create(state: EditorState): number {
-		return 0;
-	},
-	update(oldState: number, transaction: Transaction): number {
-		let newState = oldState;
-
-		for (const effect of transaction.effects) {
-			if (effect.is(addEffect)) {
-				newState += effect.value;
-			} else if (effect.is(subtractEffect)) {
-				newState -= effect.value;
-			} else if (effect.is(resetEffect)) {
-				newState = 0;
-			}
-		}
-
-		return newState;
-	},
-});
-
-export class TestWidget extends WidgetType {
-	toDOM(view: EditorView): HTMLElement {
-		const div = document.createElement("span");
-		if (globalApp == null) {
-			div.innerText = "Loading...";
-		} else {
-			MarkdownRenderer.render(globalApp, "- [ ] Hello", div, ".", this);
-		}
-		return div;
-	}
-}
 
 function getMarkdownEditorClass(app: any) {
 	const md = app.embedRegistry.embedByExtension.md(
@@ -112,7 +76,7 @@ function getMarkdownController(app: any, file: TFile, getEditor: () => Editor) {
 	}
 }
 
-export class GribTableWidget extends WidgetType {
+export class GridTableWidget extends WidgetType {
 	table: TableContent
 	from: number
 	to: number
@@ -227,7 +191,9 @@ const tableField = StateField.define<DecorationSet>({
 			try {
 				SeparatorLine.tryParse(line);
 				potentialTables.push(index);
-			} catch (e) { }
+			} catch (e) {
+				// Line wasn't a separator line, so it isn't the start of a potential table.
+			}
 			index++;
 		}
 
@@ -250,65 +216,32 @@ const tableField = StateField.define<DecorationSet>({
 			);
 			console.log(parts);
 
+			let table: TableContent | null = null;
+
 			try {
-				console.log("Trying to parse..");
-				const table = tryParseTableFromParsedParts(parts);
-				console.log("Found a table!");
-				const tableEndLine = tableStartLine + parts.length - 1;
-				const from = tr.state.doc.line(tableStartLine).from;
-				const to = tr.state.doc.line(tableEndLine).to + 1;
+				table = tryParseTableFromParsedParts(parts);
+			} catch (e) {
+				// Failed to parse table.
+				continue;
+			}
 
-				if (isSourceMode) {
-					builder.add(from, to, Decoration.mark({ class: 'HyperMD-table-row' }))
-				} else {
-					builder.add(from, to, Decoration.replace({
-						widget: new GribTableWidget(table, fileRef, from, to)
-					}));
-				}
+			const tableEndLine = tableStartLine + parts.length - 1;
+			const from = tr.state.doc.line(tableStartLine).from;
+			const to = tr.state.doc.line(tableEndLine).to + 1;
 
-				scannedUpTo = tableEndLine;
-			} catch (e) { }
+			if (isSourceMode) {
+				builder.add(from, to, Decoration.mark({ class: 'HyperMD-table-row' }))
+			} else {
+				builder.add(from, to, Decoration.replace({
+					widget: new GridTableWidget(table, fileRef, from, to)
+				}));
+			}
 
-			// while (lineIndex < tr.state.doc.lines) {
-			// 	const line = tr.state.doc.line(lineIndex);
-			// 	const text = line.text;
-			// 	if (text.length == 0) break;
-
-			// 	if (text.match(/(\+-+)+\+/)) {
-			// 		const parts = text.split("+").length - 2;
-			// 		parsedLines.push(new SeparatorLine(parts));
-			// 	} else if (text.match(/(|.+)+|/)) {
-			// 		const parts = text.split("|");
-			// 		const withoutEdges = parts.slice(1, -1);
-			// 		parsedLines.push(new ParsedContentLine(withoutEdges));
-
-			// 	}
-			// 	lineIndex++;
-			// }
-
-			// const tableStartLine = tableStartLine;
-			// const tableEndLine = lineIndex - 1;
-
-			// if (isValidTableSpec(parsedLines)) {
-			// 	const table = tableSpecToTableContent(parsedLines);
-			// 	const from = tr.state.doc.line(tableStartLine).from;
-			// 	const to = tr.state.doc.line(tableEndLine).to;
-
-			// 	if (isSourceMode) {
-			// 		builder.add(from, to, Decoration.mark({ class: 'HyperMD-table-row' }))
-			// 	} else {
-			// 		builder.add(from, to, Decoration.replace({
-			// 			widget: new GribTableWidget(table, fileRef, from, to)
-			// 		}));
-			// 	}
-			// 	// console.log(`Found table at lines ${tableIndex}-${lineIndex}! Marking lines as non-tablale`);
-			// 	scannedUpTo = tableEndLine;
-			// }
+			scannedUpTo = tableEndLine;
 		}
 		return builder.finish();
 	},
 	provide(field: StateField<DecorationSet>): Extension {
-		// console.log("Provide decorations");
 		return EditorView.decorations.from(field);
 	},
 });
@@ -321,17 +254,6 @@ export default class MyPlugin extends Plugin {
 
 	async onload() {
 		globalPlugin = this;
-		// this.app
-		// const previousCreate = EditorState.create;
-		// EditorState.create = createFunc(EditorState);
-		// EditorState.create = function (config) {
-		// 	test(EditorState.create);
-		// 	if (config?.extensions) {
-		// 		let globalExtensionSpec = config.extensions
-		// 	}
-		// 	console.log(`Creating new state with ${config?.extensions}`);
-		// 	return previousCreate.call(EditorState, config);
-		// }
 		globalApp = this.app;
 		await this.loadSettings();
 		this.registerEditorExtension(tableField);
