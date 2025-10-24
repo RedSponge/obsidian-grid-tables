@@ -4,6 +4,7 @@ import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from '@
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableContent } from 'src/TableData';
 import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
+import { EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_ROW_CLASS } from 'src/consts';
 
 // Remember to rename these classes and interfaces!
 
@@ -103,15 +104,14 @@ export class GridTableWidget extends WidgetType {
 		}
 
 		const table = document.createElement("table");
+		table.classList.add(EDITOR_TABLE_CLASS);
 
 		for (const row of this.table.rows) {
 			const tr = document.createElement("tr");
+			tr.classList.add(EDITOR_TABLE_ROW_CLASS);
 			for (const cell of row.cells) {
 				const td = document.createElement("td");
-				td.style.border = "1px solid white";
-				td.style.width = "200px";
-
-
+				td.classList.add(EDITOR_TABLE_CELL_CLASS);
 				const containingDiv = document.createElement("div");
 
 				if (!globalPlugin) {

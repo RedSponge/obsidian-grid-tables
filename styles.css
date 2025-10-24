@@ -6,3 +6,15 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.obsidian-grid-tables-table {
+    border-collapse: collapse;
+}
+
+.obsidian-grid-tables-cell {
+    border: 1px solid #666;
+    border-collapse: collapse;
+    min-width: 200px;
+    padding: 0.5em;
+    vertical-align: top;
+}
