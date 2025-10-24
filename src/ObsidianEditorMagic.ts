@@ -4,8 +4,8 @@
  */
 
 import { App, Component, Editor, TFile } from "obsidian";
-import { Extension } from "@codemirror/state"
-import { ViewUpdate } from "@codemirror/view"
+import { Extension, Prec } from "@codemirror/state"
+import { EditorView, ViewUpdate } from "@codemirror/view"
 
 function getMarkdownEditorClass(app: App) {
     // @ts-ignore: Accessing hidden parameters.
@@ -35,16 +35,24 @@ export interface EditorConstructor {
 }
 
 export interface AdaptedEditor extends Component {
-    setChangeHandler(changeHandler: (update: ViewUpdate) => undefined | undefined): undefined;
-    setContent(content: string): undefined;
+    setChangeHandler(changeHandler: (update: ViewUpdate) => undefined | undefined): void;
+    setContent(content: string): void;
+    setExtraExtensionProvider(provider: () => any[]): void;
+    focus(): void
 }
 
 function getTableCellEditorClass(superclass: { new(app: App, element: Element, controller: MarkdownController): any }): EditorConstructor {
     class TableCellEditor extends superclass implements AdaptedEditor {
         onChange: (update: ViewUpdate) => undefined | undefined
+        extraExtensionProvider: (() => Extension[]) | undefined
 
         constructor(app: App, element: Element, controller: MarkdownController) {
             super(app, element, controller);
+            this.extraExtensionProvider = undefined;
+        }
+
+        setExtraExtensionProvider(provider: (() => Extension[]) | undefined): undefined {
+            this.extraExtensionProvider = provider;
         }
 
         isCellEditor = true;
@@ -54,7 +62,15 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
             this.onChange && this.onChange(update);
         }
         buildLocalExtensions(): Extension[] {
-            const extensions = super.buildLocalExtensions();
+            const extensions: Extension[] = super.buildLocalExtensions();
+            if (this.extraExtensionProvider) {
+                const extraExtensions = this.extraExtensionProvider();
+                extensions.push(...extraExtensions);
+            }
+            // extensions.push(Prec.highest(EditorView.domEventHandlers({
+            //     keypress: (...args) => console.log(`Keypress ${args}`),
+            //     paste: (...args) => console.log(`paste(${args})`),
+            // })))
             // TODO: Hook into events here like Kanban does, to handle paste and so on.
             return extensions;
         }

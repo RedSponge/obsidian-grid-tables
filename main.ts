@@ -1,6 +1,6 @@
 import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownRenderer, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
-import { EditorState, Extension, RangeSetBuilder, StateEffect, StateField, Transaction } from "@codemirror/state"
-import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from '@codemirror/view'
+import { EditorState, Extension, Prec, RangeSetBuilder, StateEffect, StateField, Transaction } from "@codemirror/state"
+import { Decoration, DecorationSet, EditorView, keymap, ViewUpdate, WidgetType } from '@codemirror/view'
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableContent } from 'src/TableData';
 import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
@@ -21,7 +21,7 @@ export class GridTableWidget extends WidgetType {
 	from: number
 	to: number
 	file: TFile
-	newEditors: ObsidianEditorAdapter[]
+	editors: ObsidianEditorAdapter[]
 
 	constructor(table: TableContent, file: TFile, originalFrom: number, originalTo: number) {
 		super()
@@ -29,7 +29,7 @@ export class GridTableWidget extends WidgetType {
 		this.from = originalFrom;
 		this.to = originalTo;
 		this.file = file;
-		this.newEditors = [];
+		this.editors = [];
 	}
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
 		return true;
@@ -57,6 +57,37 @@ export class GridTableWidget extends WidgetType {
 				}
 
 				const editor = new ObsidianEditorAdapter(globalApp, globalPlugin);
+
+				editor.setExtraExtensionProvider(() => [
+					Prec.highest(
+						keymap.of([
+							{
+								key: 'Tab',
+								run: (cm) => {
+									const myIndex = this.editors.indexOf(editor);
+									const desired = myIndex + 1;
+									if (desired < this.editors.length) {
+										this.editors[desired].focus();
+									} else {
+										console.log("Ran out of cells to tab to! TODO: Create a new one!");
+									}
+									return true;
+								},
+								shift: (cm) => {
+									const myIndex = this.editors.indexOf(editor);
+									const desired = myIndex - 1;
+									if (desired >= 0) {
+										this.editors[desired].focus();
+									} else {
+										console.log("Ran out of cells to tab to! TODO: Create a new one!");
+									}
+									return true;
+								},
+								preventDefault: true,
+							}
+						])
+					)
+				])
 				editor.mount(containingDiv, this.file);
 				editor.setChangeHandler((up: ViewUpdate) => {
 					if (up.docChanged) {
@@ -73,7 +104,7 @@ export class GridTableWidget extends WidgetType {
 					}
 				});
 				editor.setContent(cell.content);
-				this.newEditors.push(editor);
+				this.editors.push(editor);
 
 				td.appendChild(containingDiv);
 				tr.appendChild(td);
@@ -86,10 +117,10 @@ export class GridTableWidget extends WidgetType {
 		return div;
 	}
 	destroy(dom: HTMLElement): void {
-		for (const newEditor of this.newEditors) {
+		for (const newEditor of this.editors) {
 			newEditor.unmount();
 		}
-		this.newEditors = [];
+		this.editors = [];
 	}
 }
 

@@ -1,6 +1,7 @@
 import { App, TFile, Plugin } from "obsidian";
 import { AdaptedEditor, EditorConstructor, getMarkdownController, getMarkdownEditorClass, getTableCellEditorClass, MarkdownController } from "./ObsidianEditorMagic";
 import { ViewUpdate } from "@codemirror/view"
+import { Extension } from "@codemirror/state"
 
 class ObsidianEditorAdapter {
     obsidianApp: App;
@@ -11,6 +12,8 @@ class ObsidianEditorAdapter {
     activeController: MarkdownController | null;
     activeEditor: AdaptedEditor | null;
 
+    extraExtensionProvider: () => Extension[];
+
     constructor(obsidianApp: App, plugin: Plugin) {
         this.obsidianApp = obsidianApp;
         this.plugin = plugin;
@@ -20,7 +23,18 @@ class ObsidianEditorAdapter {
 
         this.activeController = null;
         this.activeEditor = null;
+
+        this.extraExtensionProvider = () => [];
     }
+
+    setExtraExtensionProvider(provider: () => Extension[]) {
+        if (this.activeEditor) {
+            console.warn("Changing the ExtensionProvider will not affect a mounted editor!");
+        }
+
+        this.extraExtensionProvider = provider;
+    }
+
 
     mount(element: Element, file: TFile) {
         if (this.activeController || this.activeEditor) {
@@ -29,6 +43,8 @@ class ObsidianEditorAdapter {
 
         const controller = getMarkdownController(this.obsidianApp, file, () => editor.editor);
         const editor = new this.editorClass(this.obsidianApp, element, controller);
+
+        editor.setExtraExtensionProvider(this.extraExtensionProvider);
 
         this.activeController = controller;
         this.activeEditor = editor;
@@ -60,6 +76,14 @@ class ObsidianEditorAdapter {
             throw new Error("Not mounted!");
         }
         this.activeEditor.setChangeHandler(onChange);
+    }
+
+    focus() {
+        if (!this.activeEditor) {
+            throw new Error("Not mounted!");
+        }
+
+        this.activeEditor.focus();
     }
 }
 
