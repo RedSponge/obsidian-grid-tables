@@ -124,7 +124,9 @@ function lookAheadForTableParts(lines: Iterable<string>): (SeparatorLine | Conte
                 // No parse error was thrown
                 parts.push(potentialSeparator);
                 continue;
-            } catch (e) { }
+            } catch (e) {
+                // Parse error
+            }
             try {
                 const potentialContentLine = ContentLine.tryParseAccordingToSepLine(line, initialSeparatorLine);
 
@@ -132,7 +134,9 @@ function lookAheadForTableParts(lines: Iterable<string>): (SeparatorLine | Conte
 
                 parts.push(potentialContentLine);
                 continue;
-            } catch (e) { }
+            } catch (e) {
+                // Parse error
+            }
 
             // Line was neither content nor separator. End look-ahead and return parts.
             break;

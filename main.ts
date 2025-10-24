@@ -1,9 +1,6 @@
-import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, livePreviewState, MarkdownEditView, MarkdownRenderer, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
+import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownRenderer, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { EditorState, Extension, RangeSetBuilder, StateEffect, StateField, Transaction } from "@codemirror/state"
-import { Decoration, DecorationSet, EditorView, keymap, PluginSpec, PluginValue, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
-import { syntaxTree } from '@codemirror/language';
-import { table } from 'console';
-import { test, createFunc } from 'sloppy'
+import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from '@codemirror/view'
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableContent } from 'src/TableData';
 
@@ -202,173 +199,6 @@ export class GribTableWidget extends WidgetType {
 	}
 }
 
-// class TableCell {
-// 	content: string
-
-// 	constructor() {
-// 		this.content = "";
-// 	}
-// }
-
-// class TableRow {
-// 	cells: TableCell[]
-// 	constructor() {
-// 		this.cells = [];
-// 	}
-// }
-
-// class TableContent {
-// 	rows: TableRow[]
-// 	constructor() {
-// 		this.rows = [];
-// 	}
-
-// 	toStringRepr() {
-// 		const colWidths = [];
-
-// 		for (const row of this.rows) {
-// 			for (let colIdx = 0; colIdx < row.cells.length; colIdx++) {
-// 				if (colWidths.length <= colIdx) {
-// 					colWidths.push(0);
-// 				}
-// 				const lines = row.cells[colIdx].content.split(/\n/);
-// 				const lineLengths = lines.map((l) => l.length);
-// 				const maxLineLength = Math.max(...lineLengths);
-
-// 				if (maxLineLength > colWidths[colIdx]) {
-// 					colWidths[colIdx] = maxLineLength;
-// 				}
-// 			}
-// 		}
-
-// 		const lines = [];
-// 		const separatorParts = ["+"];
-// 		for (const colWidth of colWidths) {
-// 			separatorParts.push("-".repeat(colWidth + 2))
-// 			separatorParts.push("+");
-// 		}
-
-// 		const separator = separatorParts.join("");
-
-// 		for (const row of this.rows) {
-// 			lines.push(separator)
-
-// 			const rowLines = row.cells.map((cell) => cell.content.split(/\n/));
-// 			console.log(rowLines);
-// 			const numRows = Math.max(...rowLines.map((lines) => lines.length));
-// 			console.log(numRows);
-
-// 			for (let innerRowIdx = 0; innerRowIdx < numRows; innerRowIdx++) {
-// 				const rowParts = [];
-// 				for (let colIdx = 0; colIdx < rowLines.length; colIdx++) {
-// 					const lines = rowLines[colIdx];
-// 					const part = lines[innerRowIdx] || "";
-// 					const paddedPart = part.padEnd(colWidths[colIdx], " ");
-
-// 					rowParts.push(paddedPart)
-// 				}
-// 				lines.push("| " + rowParts.join(" | ") + " |");
-// 			}
-// 		}
-// 		lines.push(separator);
-// 		const repr = lines.join("\n").trim();
-// 		console.log(repr);
-// 		return repr;
-// 	}
-// }
-
-// class SeparatorLine {
-// 	columnLengths: number[]
-
-// 	constructor(columnIndices: number[]) {
-// 		if (columnIndices.length < 1) {
-// 			throw new Error("columnIndices must not be empty!");
-// 		}
-
-// 		this.columnLengths = columnIndices;
-// 	}
-
-// 	toStringRepr() {
-// 		const parts = [];
-// 		for (const length of this.columnLengths) {
-// 			parts.push("-".repeat(length));
-// 		}
-
-// 		return `+${parts.join("+")}+`
-// 	}
-
-// 	static tryParse(line: string) {
-// 		line.split("+")
-// 	}
-// }
-
-// class ParsedContentLine {
-// 	contents: string[]
-
-// 	constructor(contents: string[]) {
-// 		this.contents = contents;
-// 	}
-// }
-
-// function isValidTableSpec(parsed: (SeparatorLine | ParsedContentLine)[]): boolean {
-// 	if (parsed.length < 3) return false;
-
-// 	// console.log("Top check")
-// 	if (!(parsed[0] instanceof SeparatorLine)) return false;
-// 	// console.log("Bottom check")
-// 	if (!(parsed[parsed.length - 1] instanceof SeparatorLine)) return false;
-// 	const expectedColumns = parsed[0].columnCount;
-// 	let separatorOk = false;
-
-// 	for (let i = 1; i < parsed.length; i++) {
-// 		const entry = parsed[i];
-// 		if (entry instanceof SeparatorLine) {
-// 			// console.log("Checking separator..")
-// 			if (!separatorOk) {
-// 				// console.log("Separator wasn't ok!");
-// 				return false;
-// 			}
-// 			// console.log("Separator was ok");
-// 			separatorOk = false;
-// 		} else if (entry instanceof ParsedContentLine) {
-// 			// console.log("Checking ParsedContentLine");
-// 			if (entry.contents.length != expectedColumns) {
-// 				// console.log("Bad lengths!");
-// 				return false;
-// 			}
-// 			// console.log("Content was ok. Marking separatorOk=true");
-// 			separatorOk = true;
-// 		}
-// 	}
-
-// 	return true;
-// }
-
-// function tableSpecToTableContent(validSpec: (SeparatorLine | ParsedContentLine)[]): TableContent {
-// 	const content = new TableContent();
-
-// 	for (const entry of validSpec) {
-// 		if (entry instanceof SeparatorLine) {
-// 			const newRow = new TableRow();
-// 			for (let i = 0; i < entry.columnCount; i++) {
-// 				newRow.cells.push(new TableCell());
-// 			}
-// 			content.rows.push(newRow);
-// 		} else {
-// 			const row = content.rows[content.rows.length - 1];
-// 			for (let i = 0; i < entry.contents.length; i++) {
-// 				row.cells[i].content += entry.contents[i].trim() + "\n";
-// 			}
-// 		}
-// 	}
-
-// 	// Remove last constructed row because it's the last separator line.
-// 	// TODO: don't even construct it.
-// 	content.rows.pop();
-
-// 	return content;
-// }
-
 let globalApp: App | null = null;
 
 function* accessIterator<T>(whole: (index: number) => T, startIndex: number, maxIndex: number) {
@@ -377,28 +207,11 @@ function* accessIterator<T>(whole: (index: number) => T, startIndex: number, max
 	}
 }
 
-
-// function tryParsingTable(lineIterator: Iterable<string>) {
-// 	let columnIndexes = undefined;
-
-// 	for (const line of lineIterator) {
-// 		// First line
-// 		if (columnIndexes == undefined) {
-
-// 		}
-
-// 	}
-// }
-
 const tableField = StateField.define<DecorationSet>({
 	create() {
 		return Decoration.none
 	},
 	update(oldState: DecorationSet, tr: Transaction): DecorationSet {
-
-		// if (!tr.docChanged) {
-		// 	return oldState.map(tr.changes);
-		// }
 		const mdInfo = tr.state.field(editorInfoField);
 		const fileRef = mdInfo.file;
 		const view = tr.state.field(editorEditorField);
@@ -407,7 +220,6 @@ const tableField = StateField.define<DecorationSet>({
 
 
 		const builder = new RangeSetBuilder<Decoration>();
-		// const lines = []
 		let index = 1;
 		const potentialTables = [];
 		let scannedUpTo = 0;
