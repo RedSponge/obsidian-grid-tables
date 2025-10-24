@@ -34,6 +34,7 @@ export class GridTableWidget extends WidgetType {
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
 		return true;
 	}
+
 	toDOM(view: EditorView): HTMLElement {
 		const div = document.createElement("div");
 		if (globalApp == null) {
@@ -69,7 +70,9 @@ export class GridTableWidget extends WidgetType {
 									if (desired < this.editors.length) {
 										this.editors[desired].focus();
 									} else {
-										console.log("Ran out of cells to tab to! TODO: Create a new one!");
+										console.log("Adding a row!");
+										this.table.addRow();
+										this.flushToFile(view);
 									}
 									return true;
 								},
@@ -94,13 +97,7 @@ export class GridTableWidget extends WidgetType {
 						const newContent = up.state.doc.toString();
 						cell.content = newContent;
 
-						const from = this.from;
-						const to = this.to;
-						const newTableRepr = tableContentToString(this.table) + "\n";
-						view.dispatch({
-							changes: { from: from, to: to, insert: newTableRepr }
-						})
-						this.to = this.from + newTableRepr.length;
+						this.flushToFile(view);
 					}
 				});
 				editor.setContent(cell.content);
@@ -116,6 +113,17 @@ export class GridTableWidget extends WidgetType {
 
 		return div;
 	}
+
+	flushToFile(view: EditorView) {
+		const from = this.from;
+		const to = this.to;
+		const newTableRepr = tableContentToString(this.table) + "\n";
+		view.dispatch({
+			changes: { from: from, to: to, insert: newTableRepr }
+		})
+		this.to = this.from + newTableRepr.length;
+	}
+
 	destroy(dom: HTMLElement): void {
 		for (const newEditor of this.editors) {
 			newEditor.unmount();
