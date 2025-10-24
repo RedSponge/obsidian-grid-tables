@@ -1,8 +1,11 @@
+/**
+ * The code in this file has been adapted from the Obsidian Kanban Tables plugin which can be found here: 
+ * https://github.com/mgmeyers/obsidian-kanban/blob/8501981a1afacb4c8fc03ec60604aa5eedfbd857/src/components/Editor/MarkdownEditor.tsx
+ */
+
 import { App, Component, Editor, TFile } from "obsidian";
 import { Extension } from "@codemirror/state"
 import { ViewUpdate } from "@codemirror/view"
-
-// TODO: Add credit link to KanbanTables
 
 function getMarkdownEditorClass(app: App) {
     // @ts-ignore: Accessing hidden parameters.
