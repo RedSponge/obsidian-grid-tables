@@ -6,11 +6,11 @@ import { TableContent } from 'src/TableData';
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
+interface GridTablePluginSettings {
 	mySetting: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: GridTablePluginSettings = {
 	mySetting: 'default'
 }
 
@@ -238,10 +238,10 @@ const tableField = StateField.define<DecorationSet>({
 });
 
 
-let globalPlugin: MyPlugin | null = null;
+let globalPlugin: GridTablePlugin | null = null;
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class GridTablePlugin extends Plugin {
+	settings: GridTablePluginSettings;
 
 	async onload() {
 		globalPlugin = this;
@@ -268,9 +268,9 @@ export default class MyPlugin extends Plugin {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: GridTablePlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: GridTablePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
