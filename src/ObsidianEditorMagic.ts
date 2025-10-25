@@ -3,7 +3,7 @@
  * https://github.com/mgmeyers/obsidian-kanban/blob/8501981a1afacb4c8fc03ec60604aa5eedfbd857/src/components/Editor/MarkdownEditor.tsx
  */
 
-import { App, Component, Editor, TFile } from "obsidian";
+import { App, Component, Editor, MarkdownView, TFile } from "obsidian";
 import { Extension, Prec } from "@codemirror/state"
 import { EditorView, ViewUpdate } from "@codemirror/view"
 
@@ -39,6 +39,12 @@ export interface AdaptedEditor extends Component {
     setContent(content: string): void;
     setExtraExtensionProvider(provider: () => any[]): void;
     focus(): void
+
+    // Inferred using a debugger
+    get app(): App;
+    get cm(): EditorView;
+    get containerEl(): HTMLElement;
+
 }
 
 function getTableCellEditorClass(superclass: { new(app: App, element: Element, controller: MarkdownController): any }): EditorConstructor {

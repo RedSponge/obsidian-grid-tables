@@ -1,10 +1,9 @@
 import { App, TFile, Plugin } from "obsidian";
 import { AdaptedEditor, EditorConstructor, getMarkdownController, getMarkdownEditorClass, getTableCellEditorClass, MarkdownController } from "./ObsidianEditorMagic";
-import { ViewUpdate } from "@codemirror/view"
+import { EditorView, ViewUpdate } from "@codemirror/view"
 import { Extension } from "@codemirror/state"
 
 class ObsidianEditorAdapter {
-    obsidianApp: App;
     plugin: Plugin;
 
     editorClass: EditorConstructor;
@@ -14,8 +13,7 @@ class ObsidianEditorAdapter {
 
     extraExtensionProvider: () => Extension[];
 
-    constructor(obsidianApp: App, plugin: Plugin) {
-        this.obsidianApp = obsidianApp;
+    constructor(plugin: Plugin) {
         this.plugin = plugin;
 
         const MarkdownEditor = getMarkdownEditorClass(this.obsidianApp);
@@ -25,6 +23,17 @@ class ObsidianEditorAdapter {
         this.activeEditor = null;
 
         this.extraExtensionProvider = () => [];
+    }
+
+    get obsidianApp(): App {
+        return this.plugin.app;
+    }
+
+    get editorView(): EditorView {
+        if (!this.activeEditor) {
+            throw new Error("Not mounted!");
+        }
+        return this.activeEditor?.cm;
     }
 
     setExtraExtensionProvider(provider: () => Extension[]) {

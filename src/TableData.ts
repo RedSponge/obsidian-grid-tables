@@ -15,6 +15,10 @@ class TableCell {
 class TableRow {
     cells: TableCell[]
 
+    get length() {
+        return this.cells.length;
+    }
+
     constructor(cells: TableCell[]) {
         this.cells = cells;
     }
@@ -34,7 +38,15 @@ class TableContent {
         return `TableContent([${this.rows}])`
     }
 
-    addRow(length: number | undefined = undefined) {
+    get columnCount() {
+        return this.rows[0].length;
+    }
+
+    get rowCount() {
+        return this.rows.length
+    }
+
+    addRow(length: number | undefined = undefined): TableRow {
         if (length == undefined) {
             if (this.rows.length == 0) {
                 throw new Error("Length of row must be specified for an empty table!");
@@ -44,6 +56,8 @@ class TableContent {
 
         const newRow = new TableRow(Array(length).fill("").map((s) => new TableCell(s)))
         this.rows.push(newRow);
+
+        return newRow;
     }
 }
 

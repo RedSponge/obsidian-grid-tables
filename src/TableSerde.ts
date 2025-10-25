@@ -146,10 +146,19 @@ function lookAheadForTableParts(lines: Iterable<string>): (SeparatorLine | Conte
 }
 
 function isValidTableSpec(parts: (SeparatorLine | ContentLine)[]): boolean {
-    if (parts.length < 3) return false;
+    if (parts.length < 3) {
+        console.debug("Less than 3 parts!");
+        return false;
+    }
 
-    if (!(parts[0] instanceof SeparatorLine)) return false;
-    if (!(parts[parts.length - 1] instanceof SeparatorLine)) return false;
+    if (!(parts[0] instanceof SeparatorLine)) {
+        console.debug("First line isn't a separator line!")
+        return false;
+    }
+    if (!(parts[parts.length - 1] instanceof SeparatorLine)) {
+        console.debug("Last line isn't a separator line! It is", parts[parts.length - 1]);
+        return false;
+    }
     const expectedColumns = parts[0].columnLengths;
 
     let separatorOk = false;
@@ -158,13 +167,20 @@ function isValidTableSpec(parts: (SeparatorLine | ContentLine)[]): boolean {
         const entry = parts[i];
 
         if (entry instanceof SeparatorLine) {
-            if (!separatorOk) return false;
-            if (!entry.equals(parts[0])) return false;
+            if (!separatorOk) {
+                console.debug("Unexpected separator!");
+                return false;
+            }
+            if (!entry.equals(parts[0])) {
+                console.debug("Separator line doesn't match first one!")
+                return false;
+            }
 
             separatorOk = false;
         } else if (entry instanceof ContentLine) {
             for (let i = 0; i < expectedColumns.length; i++) {
                 if (entry.dataChunks[i].length - expectedColumns[i] > 2) {
+                    console.debug("Content length doesn't match expected column length!");
                     return false;
                 }
             }
