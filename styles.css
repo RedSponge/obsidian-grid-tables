@@ -14,7 +14,7 @@ If your plugin does not need CSS, delete this file.
 .obsidian-grid-tables-cell {
     border: 1px solid #777;
     border-collapse: collapse;
-    min-width: 100px;
+    min-width: 150px;
     padding: 0.5em;
     vertical-align: top;
 }
