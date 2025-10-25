@@ -46,6 +46,10 @@ class TableContent {
         return this.rows.length
     }
 
+    get allCells(): TableCell[] {
+        return this.rows.flatMap((r) => r.cells);
+    }
+
     addRow(length: number | undefined = undefined): TableRow {
         if (length == undefined) {
             if (this.rows.length == 0) {
@@ -58,6 +62,17 @@ class TableContent {
         this.rows.push(newRow);
 
         return newRow;
+    }
+
+    addColumn(): TableCell[] {
+        const cells = [];
+        for (const row of this.rows) {
+            const newCell = new TableCell("");
+            row.cells.push(newCell);
+            cells.push(newCell);
+        }
+
+        return cells;
     }
 }
 

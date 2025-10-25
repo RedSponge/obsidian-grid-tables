@@ -14,7 +14,44 @@ If your plugin does not need CSS, delete this file.
 .obsidian-grid-tables-cell {
     border: 1px solid #777;
     border-collapse: collapse;
-    min-width: 200px;
+    min-width: 100px;
     padding: 0.5em;
     vertical-align: top;
+}
+
+.obsidian-grid-tables-container {
+    display: flex;
+    position: relative;
+    width: fit-content;
+}
+
+.obsidian-grid-tables-table-button {
+    border: 1px solid #333;
+    color: #333;
+    font-size: 1.5em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+    position: absolute;
+}
+
+.obsidian-grid-tables-table-button:hover {
+    border: 1px solid #666;
+    color: #666;
+}
+
+.obsidian-grid-tables-table-button.obsidian-grid-tables-add-col-button {
+    border-left: 0;
+    top: 0;
+    inset-inline-start: 100%;
+    border-inline-start: none;
+    height: 100%;
+}
+
+.obsidian-grid-tables-table-button.obsidian-grid-tables-add-row-button {
+    border-top: 0;
+    top: 100%;
+    width: 100%;
+    flex-direction: row;
 }

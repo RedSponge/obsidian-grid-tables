@@ -1,11 +1,11 @@
-import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownPostProcessorContext, MarkdownRenderer, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
-import { EditorState, Extension, Prec, RangeSetBuilder, StateEffect, StateField, Transaction } from "@codemirror/state"
-import { Command, Decoration, DecorationSet, drawSelection, EditorView, keymap, ViewUpdate, WidgetType } from '@codemirror/view'
-import { isValidTableSpec, lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
+import { App, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownPostProcessorContext, MarkdownRenderer, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
+import { Extension, Prec, RangeSetBuilder, StateField, Transaction } from "@codemirror/state"
+import { Command, Decoration, DecorationSet, EditorView, keymap, WidgetType } from '@codemirror/view'
+import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableCell, TableContent, TableRow } from 'src/TableData';
 import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
-import { EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_ROW_CLASS } from 'src/consts';
-import { syntaxTree } from '@codemirror/language';
+import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS, EDITOR_TABLE_BUTTON_CLASS, EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_CONTAINER_CLASS, EDITOR_TABLE_ROW_CLASS, PLUS_SVG } from 'src/consts';
+import { BiMap } from 'src/BiMap';
 
 // Remember to rename these classes and interfaces!
 
@@ -39,22 +39,32 @@ export class GridTableWidget extends WidgetType {
 	table: TableContent
 	lastFlushedLength: number
 	file: TFile
-	editors: ObsidianEditorAdapter[]
+	cellsByEditor: BiMap<ObsidianEditorAdapter, TableCell>
 
 	constructor(table: TableContent, file: TFile, originalLength: number) {
 		super()
 		this.table = table;
 		this.lastFlushedLength = originalLength
 		this.file = file;
-		this.editors = [];
+		this.cellsByEditor = new BiMap();
 	}
+
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
 		return true;
 	}
 
+	getIndexOfEditor(editor: ObsidianEditorAdapter): number {
+		const cell = this.cellsByEditor.get(editor);
+		if (cell == null) {
+			throw new Error(`Cell for editor with content ${editor.editorView.state.doc.toString()} wasn't in cellsByEditor!`);
+		}
+
+		return this.table.allCells.indexOf(cell);
+	}
+
 	genTabHandler(shift: boolean, editor: ObsidianEditorAdapter, view: EditorView, containingTable: HTMLTableElement): Command {
 		return (_cellView: EditorView) => {
-			const myIndex = this.editors.indexOf(editor);
+			const myIndex = this.getIndexOfEditor(editor);
 
 			if (myIndex == -1) {
 				console.warn("Cell isn't part of known editors, so skipping it!");
@@ -65,11 +75,7 @@ export class GridTableWidget extends WidgetType {
 
 			if (!this.tryShiftFromBy(editor, direction)) {
 				if (direction == 1) {
-					const newRow = this.table.addRow();
-					this.flushToFile(view, containingTable);
-					const newTR = this.constructRow(newRow, editor.plugin, view, containingTable)
-					containingTable.appendChild(newTR);
-
+					this.addRow(view, editor.plugin, containingTable);
 					// Try shifting now that new cell should be created.
 					this.tryShiftFromBy(editor, 1);
 				} else {
@@ -79,6 +85,13 @@ export class GridTableWidget extends WidgetType {
 
 			return true;
 		}
+	}
+
+	addRow(view: EditorView, plugin: Plugin, containingTable: HTMLTableElement) {
+		const newRow = this.table.addRow();
+		this.flushToFile(view, containingTable);
+		const newTR = this.constructRow(newRow, plugin, view, containingTable)
+		containingTable.appendChild(newTR);
 	}
 
 	constructRow(row: TableRow, plugin: Plugin, view: EditorView, containingTable: HTMLTableElement) {
@@ -93,7 +106,7 @@ export class GridTableWidget extends WidgetType {
 			const [td, editor] = this.constructCell(plugin, view, cell, containingTable);
 
 			editor.setContent(cell.content);
-			this.editors.push(editor);
+			this.cellsByEditor.set(editor, cell);
 			tr.appendChild(td);
 		}
 
@@ -101,17 +114,24 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	tryShiftFromBy(fromEditor: ObsidianEditorAdapter, byAmount: number, newCellCallback: ((newEditor: EditorView) => void) | undefined = undefined): boolean {
-		const editorIndex = this.editors.indexOf(fromEditor);
+		const editorIndex = this.getIndexOfEditor(fromEditor);
 		if (editorIndex == -1) return false;
 		const desired = editorIndex + byAmount;
 
-		if (desired < 0 || desired >= this.editors.length) {
+		if (desired < 0 || desired >= this.table.allCells.length) {
 			return false;
 		}
 
-		this.editors[desired].focus();
+		const desiredCell = this.table.allCells[desired];
+		const editor = this.cellsByEditor.getByValue(desiredCell);
+
+		if (!editor) {
+			throw new Error(`Editor for cell with content ${desiredCell.content} isn't found!`);
+		}
+
+		editor.focus();
 		if (newCellCallback) {
-			newCellCallback(this.editors[desired].editorView);
+			newCellCallback(editor.editorView);
 		}
 
 		return true;
@@ -205,6 +225,19 @@ export class GridTableWidget extends WidgetType {
 		return [td, editor];
 	}
 
+	addColumn(view: EditorView, plugin: Plugin, containingTable: HTMLTableElement) {
+		const columnCells = this.table.addColumn();
+		this.flushToFile(view, containingTable);
+
+		const trs = Array.from(containingTable.children);
+		for (let i = 0; i < columnCells.length; i++) {
+			const [td, editor] = this.constructCell(plugin, view, columnCells[i], containingTable);
+			editor.setContent("");
+			this.cellsByEditor.set(editor, columnCells[i]);
+			trs[i].appendChild(td);
+		}
+	}
+
 	toDOM(view: EditorView): HTMLElement {
 		const div = document.createElement("div");
 		if (globalPlugin == null) {
@@ -212,16 +245,38 @@ export class GridTableWidget extends WidgetType {
 			return div;
 		}
 
+		const plugin = globalPlugin;
+
+		div.classList.add(EDITOR_TABLE_CONTAINER_CLASS);
+
 		const table = document.createElement("table");
 		table.classList.add(EDITOR_TABLE_CLASS);
 
 		for (const row of this.table.rows) {
-			const tr = this.constructRow(row, globalPlugin, view, table);
+			const tr = this.constructRow(row, plugin, view, table);
 
 			table.appendChild(tr);
 		}
 
 		div.appendChild(table);
+
+		const newColButton = document.createElement("div");
+		newColButton.innerHTML = PLUS_SVG;
+		newColButton.classList.add(EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS);
+		newColButton.classList.add(EDITOR_TABLE_BUTTON_CLASS);
+		newColButton.addEventListener('click', (_) => {
+			this.addColumn(view, plugin, table);
+		})
+		div.appendChild(newColButton);
+
+		const newRowButton = document.createElement("div");
+		newRowButton.innerHTML = PLUS_SVG;
+		newRowButton.classList.add(EDITOR_TABLE_ADD_ROW_BUTTON_CLASS);
+		newRowButton.classList.add(EDITOR_TABLE_BUTTON_CLASS);
+		newRowButton.addEventListener('click', (_) => {
+			this.addRow(view, plugin, table);
+		})
+		div.appendChild(newRowButton);
 
 		return div;
 	}
@@ -237,10 +292,11 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	destroy(dom: HTMLElement): void {
-		for (const newEditor of this.editors) {
+
+		for (const newEditor of this.cellsByEditor.keys()) {
 			newEditor.unmount();
 		}
-		this.editors = [];
+		this.cellsByEditor.clear();
 	}
 }
 
