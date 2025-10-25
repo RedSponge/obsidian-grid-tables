@@ -37,8 +37,6 @@ function moveCursorToBeginning(view: EditorView) {
 
 export class GridTableWidget extends WidgetType {
 	table: TableContent
-	// from: number
-	// to: number
 	lastFlushedLength: number
 	file: TFile
 	editors: ObsidianEditorAdapter[]
@@ -51,13 +49,6 @@ export class GridTableWidget extends WidgetType {
 		this.editors = [];
 	}
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
-		// const length = this.to - this.from;
-		// console.log(`Previous from: ${this.from}`)
-
-		// this.from = view.posAtDOM(dom);
-		// console.log(`New from: ${this.from}`)
-		// this.to = this.from + length;
-
 		return true;
 	}
 
