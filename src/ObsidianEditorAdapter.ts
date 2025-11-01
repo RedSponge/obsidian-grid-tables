@@ -1,5 +1,5 @@
 import { App, TFile, Plugin } from "obsidian";
-import { AdaptedEditor, EditorConstructor, getMarkdownController, getMarkdownEditorClass, getTableCellEditorClass, MarkdownController } from "./ObsidianEditorMagic";
+import { AdaptedEditor, EditorConstructor, getMarkdownController, getMarkdownEditorClass, getTableCellEditorClass, MarkdownController, TableChangeHandler } from "./ObsidianEditorMagic";
 import { EditorView, ViewUpdate } from "@codemirror/view"
 import { Extension } from "@codemirror/state"
 
@@ -80,11 +80,26 @@ class ObsidianEditorAdapter {
         this.activeEditor.setContent(content);
     }
 
-    setChangeHandler(onChange: (update: ViewUpdate) => undefined | undefined) {
+    getContent(): string {
+        if (!this.activeEditor) {
+            throw new Error("Not mounted!");
+        }
+
+        return this.activeEditor.getContent();
+    }
+
+    setChangeHandler(onChange: TableChangeHandler | undefined) {
         if (!this.activeEditor) {
             throw new Error("Not mounted!");
         }
         this.activeEditor.setChangeHandler(onChange);
+    }
+
+    getChangeHandler(): TableChangeHandler | undefined {
+        if (!this.activeEditor) {
+            throw new Error("Not mounted!");
+        }
+        return this.activeEditor.getChangeHandler();
     }
 
     focus() {

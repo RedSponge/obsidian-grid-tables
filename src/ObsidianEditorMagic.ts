@@ -34,9 +34,13 @@ export interface EditorConstructor {
     new(app: App, element: Element, controller: MarkdownController): AdaptedEditor
 }
 
+export type TableChangeHandler = (update: ViewUpdate) => void;
+
 export interface AdaptedEditor extends Component {
-    setChangeHandler(changeHandler: (update: ViewUpdate) => undefined | undefined): void;
+    setChangeHandler(changeHandler: TableChangeHandler | undefined): void;
+    getChangeHandler(): TableChangeHandler | undefined;
     setContent(content: string): void;
+    getContent(): string;
     setExtraExtensionProvider(provider: () => any[]): void;
     focus(): void
 
@@ -47,10 +51,11 @@ export interface AdaptedEditor extends Component {
 
 }
 
+
 function getTableCellEditorClass(superclass: { new(app: App, element: Element, controller: MarkdownController): any }): EditorConstructor {
     class TableCellEditor extends superclass implements AdaptedEditor {
-        onChange: (update: ViewUpdate) => undefined | undefined
-        extraExtensionProvider: (() => Extension[]) | undefined
+        onChange: TableChangeHandler | undefined;
+        extraExtensionProvider: (() => Extension[]) | undefined;
 
         constructor(app: App, element: Element, controller: MarkdownController) {
             super(app, element, controller);
@@ -81,12 +86,19 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
             return extensions;
         }
 
-        setChangeHandler(changeHandler: (update: ViewUpdate) => undefined | undefined): undefined {
+        setChangeHandler(changeHandler: TableChangeHandler | undefined): void {
             this.onChange = changeHandler;
+        }
+
+        getChangeHandler(): TableChangeHandler | undefined {
+            return this.onChange;
         }
 
         setContent(content: string): undefined {
             this.set(content);
+        }
+        getContent(): string {
+            return this.get()
         }
     }
 
