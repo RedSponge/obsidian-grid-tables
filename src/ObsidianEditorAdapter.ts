@@ -1,6 +1,6 @@
 import { App, TFile, Plugin } from "obsidian";
 import { AdaptedEditor, EditorConstructor, getMarkdownController, getMarkdownEditorClass, getTableCellEditorClass, MarkdownController, TableChangeHandler } from "./ObsidianEditorMagic";
-import { EditorView, ViewUpdate } from "@codemirror/view"
+import { EditorView } from "@codemirror/view"
 import { Extension } from "@codemirror/state"
 
 class ObsidianEditorAdapter {

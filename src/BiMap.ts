@@ -46,11 +46,11 @@ export class BiMap<K, V> {
         return false;
     }
 
-    keys(): MapIterator<K> {
+    keys() {
         return this.keyToValue.keys();
     }
 
-    values(): MapIterator<V> {
+    values() {
         return this.keyToValue.values();
     }
 

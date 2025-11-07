@@ -6,7 +6,6 @@ import { TableCell, TableContent, TableRow } from 'src/TableData';
 import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
 import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS, EDITOR_TABLE_BUTTON_CLASS, EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_CONTAINER_CLASS, EDITOR_TABLE_ROW_CLASS, PLUS_SVG } from 'src/consts';
 import { BiMap } from 'src/BiMap';
-import { stat } from 'fs';
 
 // Remember to rename these classes and interfaces!
 
@@ -45,6 +44,8 @@ function moveCursorToBeginning(view: EditorView) {
 }
 
 class ObsidianEditorStorage {
+	static uids: number
+
 	editors: BiMap<Element, ObsidianEditorAdapter>
 	plugin: Plugin
 	uid: number
@@ -52,7 +53,12 @@ class ObsidianEditorStorage {
 	constructor(plugin: Plugin) {
 		this.plugin = plugin;
 		this.editors = new BiMap();
-		this.uid = Math.floor(Math.random() * 1000)
+
+		if (ObsidianEditorStorage.uids == undefined) {
+			ObsidianEditorStorage.uids = 0;
+		}
+
+		this.uid = ObsidianEditorStorage.uids++;
 	}
 
 	newEditor(extensions: () => Extension[], file: TFile): [Element, ObsidianEditorAdapter] {
@@ -162,31 +168,27 @@ function suggestWidth(content: string, sourcePath: string, container: HTMLElemen
 
 const nestedEditorsFacet = Facet.define<ObsidianEditorStorage>();
 
-/**
- * The GridTableWidget shouldn't hold any state - it should be completely immutable
- * It should receive a TableContent and not be able to mutate it
- * In toDOM, it should create TDs, each of which's contents correspond with the relevant TableContent cell
- * When rendering, it should construct a new TableContent with all the td contents, and call toString on it
- * The DOM 'state' of each widget should be tied to its TableElement
- * - What Divs currently exist and in what order
- * The 'state' of each cell should be tied to its DivElement
- */
 export class GridTableWidget extends WidgetType {
+	static uids: number
+
 	readonly contentToWriteToState: TableContent
-	flushed: boolean
+	readonly originalLength: number
+
 	file: TFile
 	uid: number
-	originalLength: number
-
 	editorStorage: ObsidianEditorStorage
 
 	constructor(contentToWriteToState: TableContent, file: TFile, originalLength: number) {
 		super()
 		this.contentToWriteToState = contentToWriteToState;
 		this.file = file;
-		this.uid = Math.floor(Math.random() * 1000)
-		this.flushed = false;
 		this.originalLength = originalLength;
+
+		if (GridTableWidget.uids == undefined) {
+			GridTableWidget.uids = 0;
+		}
+
+		this.uid = GridTableWidget.uids++;
 	}
 
 	loadEditors(view: EditorView) {
@@ -208,6 +210,10 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	static getIndexOfEditor(editor: ObsidianEditorAdapter): number {
+		if (!editor.parentElement.parentElement) {
+			throw new Error();
+		}
+
 		const data = TableCellAttributes.read(editor.parentElement.parentElement);
 		return data.tabIndex;
 	}
@@ -269,7 +275,7 @@ export class GridTableWidget extends WidgetType {
 		const editorIndex = GridTableWidget.getIndexOfEditor(fromEditor);
 		if (editorIndex == -1) return false;
 		const desired = editorIndex + byAmount;
-		const [desiredEl] = Array.from(tableElement.querySelectorAll(`td[tab-index="${desired}"] > div`));
+		const [desiredEl] = Array.from(tableElement.querySelectorAll(`:scope > td[tab-index="${desired}"] > div`));
 		if (desiredEl == undefined) {
 			return false;
 		}
@@ -377,7 +383,7 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	static addColumn(view: EditorView, tableElement: HTMLTableElement, file: TFile) {
-		const trs = Array.from(tableElement.querySelectorAll("tr"));
+		const trs = Array.from(tableElement.querySelectorAll(":scope > tr"));
 		for (let i = 0; i < trs.length; i++) {
 			const [td, editor] = this.constructCell(view, tableElement, file);
 			editor.setContent("");
@@ -388,16 +394,12 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	toDOM(view: EditorView): HTMLElement {
-		console.log(`toDOM ${this.uid}`)
 		this.loadEditors(view);
 		const div = document.createElement("div");
 		if (globalPlugin == null) {
 			div.innerText = "Loading...";
 			return div;
 		}
-
-		const editorStorage = view.state.facet(nestedEditorsFacet);
-		console.log(editorStorage);
 
 		const plugin = globalPlugin;
 
@@ -432,7 +434,7 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	static freeTD(editors: ObsidianEditorStorage, td: Element) {
-		const editorContainer = td.querySelector("div");
+		const editorContainer = td.querySelector(":scope > div");
 		if (editorContainer) {
 			const editor = editors.getEditorByElement(editorContainer);
 			if (editor) {
@@ -442,7 +444,7 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	static syncDomTableDimensions(view: EditorView, tableEl: HTMLTableElement, file: TFile, desiredWidth: number, desiredHeight: number) {
-		const rowElements = Array.from(tableEl.querySelectorAll("tr"));
+		const rowElements = Array.from(tableEl.querySelectorAll(":scope > tr"));
 		const [editors] = view.state.facet(nestedEditorsFacet);
 
 		// Add missing rows
@@ -455,7 +457,7 @@ export class GridTableWidget extends WidgetType {
 		// Trim excess rows
 		if (rowElements.length > desiredHeight) {
 			for (const excessTR of rowElements.slice(desiredHeight)) {
-				for (const td of Array.from(excessTR.querySelectorAll("td"))) {
+				for (const td of Array.from(excessTR.querySelectorAll(":scope > td"))) {
 					this.freeTD(editors, td);
 				}
 				excessTR.remove();
@@ -463,7 +465,7 @@ export class GridTableWidget extends WidgetType {
 		}
 
 		for (const rowEl of rowElements) {
-			const cellElements = Array.from(rowEl.querySelectorAll("td"));
+			const cellElements = Array.from(rowEl.querySelectorAll(":scope > td"));
 
 			// Add missing cells
 			for (let i = cellElements.length; i < desiredWidth; i++) {
@@ -485,15 +487,15 @@ export class GridTableWidget extends WidgetType {
 		const [editors] = view.state.facet(nestedEditorsFacet);
 
 		this.syncDomTableDimensions(view, tableEl, file, content.columnCount, content.rowCount);
-		const rowElements = Array.from(tableEl.querySelectorAll("tr"));
+		const rowElements = Array.from(tableEl.querySelectorAll(":scope > tr"));
 
 
 		for (const [rowIdx, row] of enumerate(content.rows)) {
 			const rowEl = rowElements[rowIdx];
-			const tds = Array.from(rowEl.querySelectorAll("td"));
+			const tds: HTMLTableCellElement[] = Array.from(rowEl.querySelectorAll(":scope > td"));
 			for (const [colIdx, col] of enumerate(row.cells)) {
 				const colEl = tds[colIdx];
-				const editorContainer = colEl.querySelector('div');
+				const editorContainer = colEl.querySelector(':scope > div');
 				if (editorContainer == undefined) {
 					console.error(colEl);
 					throw new Error("No editor container for td in table");
@@ -523,10 +525,10 @@ export class GridTableWidget extends WidgetType {
 	static tableContentFromDOM(view: EditorView, tableElement: HTMLTableElement) {
 		const rows = [];
 		const [editors] = view.state.facet(nestedEditorsFacet);
-		for (const tr of Array.from(tableElement.querySelectorAll("tr"))) {
+		for (const tr of Array.from(tableElement.querySelectorAll(":scope > tr"))) {
 			const cells = [];
-			for (const td of Array.from(tr.querySelectorAll("td"))) {
-				const containingDiv = td.querySelector("div");
+			for (const td of Array.from(tr.querySelectorAll(":scope > td"))) {
+				const containingDiv = td.querySelector(":scope > div");
 				if (containingDiv == null) {
 					throw new Error();
 				}
@@ -557,13 +559,11 @@ export class GridTableWidget extends WidgetType {
 	}
 
 	destroy(dom: HTMLElement): void {
-		console.log(`Destroy ${this.uid}`)
-
-		const table = dom.querySelector("table");
+		const table = dom.querySelector(":scope > table");
 		if (!table) return;
 
-		for (const tr of Array.from(table.querySelectorAll("tr"))) {
-			for (const td of Array.from(tr.querySelectorAll("td > div"))) {
+		for (const tr of Array.from(table.querySelectorAll(":scope > tr"))) {
+			for (const td of Array.from(tr.querySelectorAll(":scope > td > div"))) {
 				const editor = this.editorStorage.getEditorByElement(td);
 				if (editor) {
 					this.editorStorage.delEditor(editor);
@@ -586,6 +586,7 @@ const tableField = StateField.define<DecorationSet>({
 	update(oldState: DecorationSet, tr: Transaction): DecorationSet {
 		const mdInfo = tr.state.field(editorInfoField);
 		const fileRef = mdInfo.file;
+
 		const view = tr.state.field(editorEditorField);
 		const livePreview = view.state.field(editorLivePreviewField);
 		const isSourceMode = !livePreview;
@@ -626,7 +627,6 @@ const tableField = StateField.define<DecorationSet>({
 			try {
 				table = tryParseTableFromParsedParts(parts);
 			} catch (e) {
-				console.log("Failed to parse table!");
 				// Failed to parse table.
 				continue;
 			}
@@ -638,6 +638,9 @@ const tableField = StateField.define<DecorationSet>({
 			if (isSourceMode) {
 				builder.add(from, to, Decoration.mark({ class: 'HyperMD-table-row' }))
 			} else {
+				if (!fileRef) {
+					throw new Error("No fileRef!");
+				}
 				builder.add(from, to, Decoration.replace({
 					widget: new GridTableWidget(table, fileRef, to - from)
 				}));
@@ -663,13 +666,10 @@ function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProce
 		const text = originalText.text.split("\n").slice(originalText.lineStart - 1, originalText.lineEnd + 1).join("\n").trimStart();
 
 		const parts = lookAheadForTableParts(text.split("\n"));
-		console.log(parts);
-		console.log(text);
 		let table = null;
 		try {
 			table = tryParseTableFromParsedParts(parts)
 		} catch (e) {
-			console.log("No table!");
 			// No table.
 			continue;
 		}

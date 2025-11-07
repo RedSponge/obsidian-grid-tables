@@ -3,8 +3,8 @@
  * https://github.com/mgmeyers/obsidian-kanban/blob/8501981a1afacb4c8fc03ec60604aa5eedfbd857/src/components/Editor/MarkdownEditor.tsx
  */
 
-import { App, Component, Editor, MarkdownView, TFile } from "obsidian";
-import { Extension, Prec } from "@codemirror/state"
+import { App, Component, Editor, TFile } from "obsidian";
+import { Extension } from "@codemirror/state"
 import { EditorView, ViewUpdate } from "@codemirror/view"
 
 function getMarkdownEditorClass(app: App) {
@@ -26,8 +26,19 @@ function getMarkdownEditorClass(app: App) {
     return MarkdownEditor;
 }
 
-export interface MarkdownController {
-    set editMode(mode: AdaptedEditor | null);
+export type MarkdownController = {
+    set editMode(mode: AdaptedEditor | null)
+    app: App
+    showSearch: () => void
+    toggleMode: () => void
+    onMarkdownScroll: () => void
+    syncScroll: () => void
+    getMode: () => string
+    scroll: number
+    editMode: AdaptedEditor | null
+    get editor(): Editor
+    get file(): TFile
+    get path(): string
 }
 
 export interface EditorConstructor {
@@ -43,16 +54,19 @@ export interface AdaptedEditor extends Component {
     getContent(): string;
     setExtraExtensionProvider(provider: () => any[]): void;
     focus(): void
+    syncScroll(): void
 
     // Inferred using a debugger
     get app(): App;
     get cm(): EditorView;
     get containerEl(): HTMLElement;
+    get editor(): any;
 
 }
 
 
 function getTableCellEditorClass(superclass: { new(app: App, element: Element, controller: MarkdownController): any }): EditorConstructor {
+    // @ts-expect-error
     class TableCellEditor extends superclass implements AdaptedEditor {
         onChange: TableChangeHandler | undefined;
         extraExtensionProvider: (() => Extension[]) | undefined;
@@ -62,7 +76,7 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
             this.extraExtensionProvider = undefined;
         }
 
-        setExtraExtensionProvider(provider: (() => Extension[]) | undefined): undefined {
+        setExtraExtensionProvider(provider: (() => Extension[]) | undefined): void {
             this.extraExtensionProvider = provider;
         }
 
@@ -78,11 +92,6 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
                 const extraExtensions = this.extraExtensionProvider();
                 extensions.push(...extraExtensions);
             }
-            // extensions.push(Prec.highest(EditorView.domEventHandlers({
-            //     keypress: (...args) => console.log(`Keypress ${args}`),
-            //     paste: (...args) => console.log(`paste(${args})`),
-            // })))
-            // TODO: Hook into events here like Kanban does, to handle paste and so on.
             return extensions;
         }
 
@@ -94,7 +103,7 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
             return this.onChange;
         }
 
-        setContent(content: string): undefined {
+        setContent(content: string): void {
             this.set(content);
         }
         getContent(): string {
@@ -102,6 +111,7 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
         }
     }
 
+    // @ts-expect-error
     return TableCellEditor;
 }
 
@@ -113,6 +123,7 @@ function getMarkdownController(obsidianApp: App, file: TFile, getEditor: () => E
         showSearch: noop,
         toggleMode: noop,
         onMarkdownScroll: noop,
+        syncScroll: noop,
         getMode: () => 'source',
         scroll: 0,
         editMode: null,
@@ -132,7 +143,5 @@ export {
     getMarkdownEditorClass,
     getTableCellEditorClass,
     getMarkdownController,
-    AdaptedEditor,
-    MarkdownController,
 }
 
