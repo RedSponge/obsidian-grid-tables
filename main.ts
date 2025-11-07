@@ -155,6 +155,11 @@ class TableCellAttributes {
 }
 
 
+function suggestWidth(content: string, sourcePath: string, container: HTMLElement) {
+	const longestLine = content.split("\n").reduce((a, b, i, ar) => a.length > b.length ? a : b);
+	return `${longestLine.length + 5}ch`
+}
+
 const nestedEditorsFacet = Facet.define<ObsidianEditorStorage>();
 
 /**
@@ -505,6 +510,8 @@ export class GridTableWidget extends WidgetType {
 					editor.setContent(cellContent);
 				}
 				editor.setChangeHandler(changeHandler);
+
+				colEl.style.width = suggestWidth(cellContent, ".", colEl);
 
 				new TableCellAttributes(colIdx, rowIdx, colIdx + rowIdx * content.columnCount).write(colEl);
 			}
