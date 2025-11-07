@@ -275,7 +275,7 @@ export class GridTableWidget extends WidgetType {
 		const editorIndex = GridTableWidget.getIndexOfEditor(fromEditor);
 		if (editorIndex == -1) return false;
 		const desired = editorIndex + byAmount;
-		const [desiredEl] = Array.from(tableElement.querySelectorAll(`:scope > td[tab-index="${desired}"] > div`));
+		const [desiredEl] = Array.from(tableElement.querySelectorAll(`:scope > tr > td[tab-index="${desired}"] > div`));
 		if (desiredEl == undefined) {
 			return false;
 		}
@@ -648,6 +648,7 @@ const tableField = StateField.define<DecorationSet>({
 
 			scannedUpTo = tableEndLine;
 		}
+
 		return builder.finish();
 	},
 	provide(field: StateField<DecorationSet>): Extension {
