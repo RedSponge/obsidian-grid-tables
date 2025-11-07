@@ -44,6 +44,13 @@ class ObsidianEditorAdapter {
         this.extraExtensionProvider = provider;
     }
 
+    get parentElement(): Element {
+        if (!this.activeEditor) {
+            throw new Error("Not mounted!");
+        }
+
+        return this.activeEditor.containerEl;
+    }
 
     mount(element: Element, file: TFile) {
         if (this.activeController || this.activeEditor) {
