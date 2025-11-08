@@ -39,6 +39,7 @@ export type MarkdownController = {
     get editor(): Editor
     get file(): TFile
     get path(): string
+    nestedMdController: boolean | undefined
 }
 
 export interface EditorConstructor {
@@ -136,6 +137,7 @@ function getMarkdownController(obsidianApp: App, file: TFile, getEditor: () => E
         get path() {
             return file.path;
         },
+        nestedMdController: true,
     }
 }
 

@@ -1,4 +1,4 @@
-import { App, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownPostProcessorContext, MarkdownRenderer, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
+import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownPostProcessorContext, MarkdownRenderer, MarkdownView, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { Extension, Facet, Prec, RangeSetBuilder, StateField, Transaction } from "@codemirror/state"
 import { Command, Decoration, DecorationSet, EditorView, keymap, WidgetType } from '@codemirror/view'
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
@@ -8,6 +8,10 @@ import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS
 import { BiMap } from 'src/BiMap';
 
 // Remember to rename these classes and interfaces!
+
+function trimLines(str: string): string {
+	return str.split("\n").map((s) => s.trim()).join("\n");
+}
 
 interface GridTablePluginSettings {
 	mySetting: string;
@@ -163,7 +167,7 @@ class TableCellAttributes {
 
 function suggestWidth(content: string, sourcePath: string, container: HTMLElement) {
 	const longestLine = content.split("\n").reduce((a, b, i, ar) => a.length > b.length ? a : b);
-	return `${longestLine.length + 5}ch`
+	return `${Math.max(longestLine.length + 4, 5)}ch`
 }
 
 const nestedEditorsFacet = Facet.define<ObsidianEditorStorage>();
@@ -508,12 +512,12 @@ export class GridTableWidget extends WidgetType {
 				const cellContent = col.content;
 				const changeHandler = editor.getChangeHandler();
 				editor.setChangeHandler(undefined);
-				if (cellContent.trim() != editor.getContent().trim()) {
+				if (trimLines(cellContent).trim() != trimLines(editor.getContent()).trim()) {
 					editor.setContent(cellContent);
 				}
 				editor.setChangeHandler(changeHandler);
 
-				colEl.style.width = suggestWidth(cellContent, ".", colEl);
+				colEl.style.width = suggestWidth(colEl.querySelector(".cm-contentContainer").innerText, ".", colEl);
 
 				new TableCellAttributes(colIdx, rowIdx, colIdx + rowIdx * content.columnCount).write(colEl);
 			}
@@ -706,6 +710,28 @@ export default class GridTablePlugin extends Plugin {
 		await this.loadSettings();
 		this.registerEditorExtension(nestedEditorsFacet.of(new ObsidianEditorStorage(this)))
 		this.registerEditorExtension(tableField);
+		this.app.workspace.getActiveViewOfType(MarkdownView)
+		this.registerEditorExtension(Prec.lowest(
+			EditorView.focusChangeEffect.of((state, focusing) => {
+				if (focusing) {
+					const mdInfo = state.field(editorInfoField);
+					if (mdInfo.nestedMdController == undefined) {
+						this.app.workspace._activeEditor = null; // mdInfo;
+					}
+				}
+
+				return null;
+			}),
+		))
+		this.addCommand({
+			id: 'sample-command',
+			name: "Sample Command",
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				const sel = editor.getSelection();
+
+				console.log(sel);
+			}
+		});
 		this.registerMarkdownPostProcessor(renderTablesInMarkdown)
 
 
