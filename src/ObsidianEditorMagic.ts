@@ -61,7 +61,7 @@ export interface AdaptedEditor extends Component {
     get app(): App;
     get cm(): EditorView;
     get containerEl(): HTMLElement;
-    get editor(): any;
+    get editor(): Editor;
 
 }
 
