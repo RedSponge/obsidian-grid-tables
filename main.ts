@@ -351,26 +351,75 @@ export class GridTableWidget extends WidgetType {
 					},
 					{
 						key: 'ArrowUp',
-						run: GridTableWidget.genShiftByOnConditionHandler(
+						run: (target) => {
+							if (GridTableWidget.genShiftByOnConditionHandler(
 							view,
 							tableElement,
 							editor,
 							() => -TableAttributes.read(tableElement).cols,
 							(cellEditor) => cellEditor.state.selection.main.head == 0,
 							moveCursorToEnd,
-						),
+							)(target)) {
+								return true;
+							}
+
+							const cellAttrs = TableCellAttributes.read(editor.parentElement.parentElement);
+
+							// If first row
+							if (cellAttrs.row == 0) {
+								// If cursor is at the beginning of the cell
+								if (target.state.selection.main.head == 0) {
+									const widgetPos = view.posAtDOM(tableElement);
+									const posBeforeWidget = widgetPos - 1;
+									view.focus();
+									view.dispatch({
+										selection: {
+											head: posBeforeWidget,
+											anchor: posBeforeWidget
+										}
+									})
+									return true;
+								}
+							}
+							return false;
+						},
 						preventDefault: true,
 					},
 					{
 						key: 'ArrowDown',
-						run: GridTableWidget.genShiftByOnConditionHandler(
+						run: (target) => {
+							if (GridTableWidget.genShiftByOnConditionHandler(
 							view,
 							tableElement,
 							editor,
 							() => TableAttributes.read(tableElement).cols,
 							(cellEditor) => cellEditor.state.selection.main.head == cellEditor.state.doc.length,
 							moveCursorToBeginning,
-						),
+							)(target)) {
+								return true;
+							}
+
+							const cellAttrs = TableCellAttributes.read(editor.parentElement.parentElement);
+							const tableAttrs = TableAttributes.read(tableElement);
+
+							// If last row
+							if (cellAttrs.row == tableAttrs.rows - 1) {
+								// If cursor is at the end of the cell
+								if (target.state.selection.main.head == target.state.doc.length) {
+									const widgetPos = view.posAtDOM(tableElement);
+									const posAfterWidget = widgetPos + tableAttrs.sourceLength;
+									view.focus();
+									view.dispatch({
+										selection: {
+											head: posAfterWidget,
+											anchor: posAfterWidget
+										}
+									})
+									return true;
+								}
+							}
+							return false;
+						},
 						preventDefault: true,
 					},
 					{
