@@ -634,7 +634,7 @@ export class GridTableWidget extends WidgetType {
 		const currentContentLength = TableAttributes.read(tableElement).sourceLength;
 		const to = from + currentContentLength;
 		const newTable = this.tableContentFromDOM(view, tableElement);
-		const newTableRepr = tableContentToString(newTable) + "\n";
+		const newTableRepr = tableContentToString(newTable);
 
 		view.dispatch({
 			changes: { from: from, to: to, insert: newTableRepr }
@@ -716,7 +716,7 @@ const tableField = StateField.define<DecorationSet>({
 
 			const tableEndLine = tableStartLine + parts.length - 1;
 			const from = tr.state.doc.line(tableStartLine).from;
-			const to = tr.state.doc.line(tableEndLine).to + 1;
+			const to = tr.state.doc.line(tableEndLine).to;
 
 			if (isSourceMode) {
 				builder.add(from, to, Decoration.mark({ class: 'HyperMD-table-row' }))
@@ -725,7 +725,8 @@ const tableField = StateField.define<DecorationSet>({
 					throw new Error("No fileRef!");
 				}
 				builder.add(from, to, Decoration.replace({
-					widget: new GridTableWidget(table, fileRef, to - from)
+					widget: new GridTableWidget(table, fileRef, to - from),
+					block: true,
 				}));
 			}
 
