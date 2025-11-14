@@ -240,13 +240,16 @@ export class GridTableWidget extends WidgetType {
 		return true;
 	}
 
-	static getIndexOfEditor(editor: ObsidianEditorAdapter): number {
+	static getAttsOfEditor(editor: ObsidianEditorAdapter): TableCellAttributes {
 		if (!editor.parentElement.parentElement) {
 			throw new Error();
 		}
 
-		const data = TableCellAttributes.read(editor.parentElement.parentElement);
-		return data.tabIndex;
+		return TableCellAttributes.read(editor.parentElement.parentElement);
+	}
+
+	static getIndexOfEditor(editor: ObsidianEditorAdapter): number {
+		return this.getAttsOfEditor(editor).tabIndex;
 	}
 
 	static genTabHandler(shift: boolean, editor: ObsidianEditorAdapter, view: EditorView, containingTable: HTMLTableElement, file: TFile): Command {
@@ -363,7 +366,7 @@ export class GridTableWidget extends WidgetType {
 								return true;
 							}
 
-							const cellAttrs = TableCellAttributes.read(editor.parentElement.parentElement);
+							const cellAttrs = this.getAttsOfEditor(editor);
 
 							// If first row
 							if (cellAttrs.row == 0) {
@@ -399,7 +402,7 @@ export class GridTableWidget extends WidgetType {
 								return true;
 							}
 
-							const cellAttrs = TableCellAttributes.read(editor.parentElement.parentElement);
+							const cellAttrs = this.getAttsOfEditor(editor);
 							const tableAttrs = TableAttributes.read(tableElement);
 
 							// If last row
