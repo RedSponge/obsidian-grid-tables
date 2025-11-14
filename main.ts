@@ -47,6 +47,33 @@ function moveCursorToBeginning(view: EditorView) {
 	})
 }
 
+function triggerCodeMirrorKey(view: EditorView, keyString: string) {
+	const bindings = view.state.facet(keymap).flat();
+	for (const binding of bindings) {
+		if (binding.key == keyString) {
+			if (binding.run && binding.run(view)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+function genKeyForwarder(forwardTo: EditorView, keys: string[]) {
+	return Prec.highest(
+		keymap.of(keys.map((key) => {
+			return {
+				key,
+				run() {
+					return triggerCodeMirrorKey(forwardTo, key)
+				},
+				preventDefault: true,
+			}
+		}))
+	)
+}
+
 class ObsidianEditorStorage {
 	static uids: number
 
@@ -374,6 +401,9 @@ export class GridTableWidget extends WidgetType {
 					},
 				])
 			),
+			// Forward simple undo/redo out
+			// TODO: Also hook into editor.undo()
+			genKeyForwarder(view, ["Mod-z", "Mod-y"]),
 		], file)
 		editor.setChangeHandler((update) => {
 			if (update.docChanged) {
