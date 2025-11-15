@@ -1218,7 +1218,7 @@ export default class GridTablePlugin extends Plugin {
 
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new GridTableSettingsTab(this.app, this));
 	}
 
 	onunload() {
@@ -1234,7 +1234,7 @@ export default class GridTablePlugin extends Plugin {
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
+class GridTableSettingsTab extends PluginSettingTab {
 	plugin: GridTablePlugin;
 
 	constructor(app: App, plugin: GridTablePlugin) {
@@ -1248,14 +1248,8 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setHeading()
+			.setName("Grid Tables")
+			.setDesc("No settings yet! Soon™");
 	}
 }
