@@ -1,7 +1,7 @@
 {
 	"id": "grid-tables",
 	"name": "Grid Tables",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "0.15.0",
 	"description": "Adds Multiline Grid Tables to Obsidian",
 	"author": "RedSponge",
