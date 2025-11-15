@@ -62,6 +62,8 @@ export interface AdaptedEditor extends Component {
     get cm(): EditorView;
     get containerEl(): HTMLElement;
     get editor(): Editor;
+    get parentEditor(): EditorView | null
+    set parentEditor(editor: EditorView | null);
 
 }
 
@@ -71,10 +73,12 @@ function getTableCellEditorClass(superclass: { new(app: App, element: Element, c
     class TableCellEditor extends superclass implements AdaptedEditor {
         onChange: TableChangeHandler | undefined;
         extraExtensionProvider: (() => Extension[]) | undefined;
+        parentEditor: EditorView | null
 
         constructor(app: App, element: Element, controller: MarkdownController) {
             super(app, element, controller);
             this.extraExtensionProvider = undefined;
+            this.parentEditor = null;
         }
 
         setExtraExtensionProvider(provider: (() => Extension[]) | undefined): void {
