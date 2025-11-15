@@ -1,7 +1,36 @@
 # Obsidian Grid Tables
 
-![](./docs/demo.png)
-## What?
+Edit complex multiline (yet still completely plaintext) tables in [Obsidian](https://obsidian.md).
+
+![Banner Photo](./docs/demo.png)
+![Video Demo](./docs/demo.mp4)
+
+## What is this plugin?
+Ever felt that Obsidian's tables are a little lacking? Words go here
+
+## Installation
+- Right now download ZIP from releases
+- Soon in the Obsidian community plugin browser.
+
+## Features
+- Something something complex tables
+- Something something each cell is an embedded Obsidian editor.
+- Something something keyboard shortcuts
+- Something something command palette
+
+## Local Development
+```bash
+cd MyTestVault/.obsidian/plugins
+
+git clone https://github.com/RedSponge/obsidian-grid-tables.git
+
+cd obsidian-grid-tables
+
+npm run dev
+```
+
+## Special Thanks
+- [Obsidian Kanban](https://github.com/mgmeyers/obsidian-kanban) for the nested Obsidian editor code.
 
 <!-- 
 # Obsidian Sample Plugin
