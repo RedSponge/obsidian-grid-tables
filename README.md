@@ -3,7 +3,10 @@
 Edit complex multiline (yet still completely plaintext) tables in [Obsidian](https://obsidian.md).
 
 ![Banner Photo](./docs/demo.png)
-![Video Demo](./docs/demo.mp4)
+
+https://github.com/user-attachments/assets/8f466ad7-51f5-4a17-8dcb-8257050becf4
+
+
 
 ## Disclaimers
 
