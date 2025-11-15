@@ -1150,6 +1150,10 @@ export default class GridTablePlugin extends Plugin {
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftRowUp(cellEl, parentEditor);
 			}),
+			hotkeys: [{
+				key: "ArrowUp",
+				modifiers: ['Ctrl', 'Shift']
+			}]
 		});
 		this.addCommand({
 			id: 'grid-table-shift-row-down',
@@ -1158,6 +1162,10 @@ export default class GridTablePlugin extends Plugin {
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftRowDown(cellEl, parentEditor);
 			}),
+			hotkeys: [{
+				key: "ArrowDown",
+				modifiers: ['Ctrl', 'Shift']
+			}]
 		});
 		this.addCommand({
 			id: 'grid-table-shift-col-right',
@@ -1166,6 +1174,10 @@ export default class GridTablePlugin extends Plugin {
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftColumnRight(cellEl, parentEditor);
 			}),
+			hotkeys: [{
+				key: "ArrowRight",
+				modifiers: ['Ctrl', 'Shift']
+			}]
 		});
 		this.addCommand({
 			id: 'grid-table-shift-col-left',
@@ -1174,6 +1186,10 @@ export default class GridTablePlugin extends Plugin {
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftColumnLeft(cellEl, parentEditor);
 			}),
+			hotkeys: [{
+				key: "ArrowLeft",
+				modifiers: ['Ctrl', 'Shift']
+			}]
 		});
 		this.addCommand({
 			id: 'grid-table-insert-table',
