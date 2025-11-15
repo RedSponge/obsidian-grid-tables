@@ -999,7 +999,7 @@ const tableField = StateField.define<DecorationSet>({
 			const to = tr.state.doc.line(tableEndLine).to;
 
 			if (isSourceMode) {
-				builder.add(from, to, Decoration.mark({ class: 'HyperMD-table-row' }))
+				builder.add(from, to, Decoration.mark({ class: 'obsidian-grid-tables-table-source' }))
 			} else {
 				if (!fileRef) {
 					throw new Error("No fileRef!");
