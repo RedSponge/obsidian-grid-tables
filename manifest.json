@@ -1,11 +1,10 @@
 {
-	"id": "obsidian-grid-tables",
-	"name": "Obsidian Grid Tables",
-	"version": "1.0.0",
+	"id": "grid-tables",
+	"name": "Grid Tables",
+	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Adds Multiline Grid Tables to Obsidian",
+	"author": "RedSponge",
+	"authorUrl": "https://github.com/RedSponge/",
 	"isDesktopOnly": false
 }
