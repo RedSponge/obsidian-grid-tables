@@ -98,6 +98,10 @@ class ObsidianEditorStorage {
 
 		const containingElement = document.createElement("div");
 		editor.mount(containingElement, file)
+
+		if (!editor.activeEditor) {
+			throw new Error("Just mounted the editor!");
+		}
 		editor.activeEditor.parentEditor = parentEditor;
 
 		this.editors.set(containingElement, editor)
@@ -202,7 +206,7 @@ const nestedEditorsFacet = Facet.define<ObsidianEditorStorage>();
 
 class TableCommands {
 	static addRowBelow(tdEl: HTMLTableCellElement, editor: EditorView, file: TFile) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -210,7 +214,7 @@ class TableCommands {
 	}
 
 	static addRowAbove(tdEl: HTMLTableCellElement, editor: EditorView, file: TFile) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -218,7 +222,7 @@ class TableCommands {
 	}
 
 	static addColumnAfter(tdEl: HTMLTableCellElement, editor: EditorView, file: TFile) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -226,7 +230,7 @@ class TableCommands {
 	}
 
 	static addColumnBefore(tdEl: HTMLTableCellElement, editor: EditorView, file: TFile) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -234,7 +238,7 @@ class TableCommands {
 	}
 
 	static deleteRowAt(tdEl: HTMLTableCellElement, editor: EditorView) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -242,7 +246,7 @@ class TableCommands {
 	}
 
 	static deleteColumnAt(tdEl: HTMLTableCellElement, editor: EditorView) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -250,7 +254,7 @@ class TableCommands {
 	}
 
 	static shiftRowUp(tdEl: HTMLTableCellElement, editor: EditorView) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -258,7 +262,7 @@ class TableCommands {
 	}
 
 	static shiftRowDown(tdEl: HTMLTableCellElement, editor: EditorView) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -266,7 +270,7 @@ class TableCommands {
 	}
 
 	static shiftColumnRight(tdEl: HTMLTableCellElement, editor: EditorView) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -274,7 +278,7 @@ class TableCommands {
 	}
 
 	static shiftColumnLeft(tdEl: HTMLTableCellElement, editor: EditorView) {
-		const tableElement = tdEl.parentElement?.parentElement;
+		const tableElement = tdEl.parentElement?.parentElement as HTMLTableElement;
 		if (!tableElement) throw new Error();
 
 		const cellAttributes = TableCellAttributes.read(tdEl);
@@ -371,6 +375,10 @@ export class GridTableWidget extends WidgetType {
 		for (const td of Array.from(tr.querySelectorAll(":scope > td"))) {
 			const editor = editorStorage.getEditorByElement(td.children[0]);
 
+			if (!editor?.activeEditor) {
+				continue;
+			}
+
 			if (editor.activeEditor.editorEl.contains(document.activeElement)) {
 				currentFocus = TableCellAttributes.read(td)
 			}
@@ -393,7 +401,9 @@ export class GridTableWidget extends WidgetType {
 			}
 
 			const newFocus = this.getCellAt(tableElement, newFocusCol, newFocusRow)
-			editorStorage.getEditorByElement(newFocus?.children[0])?.focus();
+			if (newFocus) {
+				editorStorage.getEditorByElement(newFocus?.children[0])?.focus();
+			}
 		}
 
 		tr.remove();
@@ -424,7 +434,7 @@ export class GridTableWidget extends WidgetType {
 
 			const editor = editorStorage.getEditorByElement(td.children[0]);
 
-			if (editor) {
+			if (editor && editor.activeEditor) {
 				if (editor.activeEditor.editorEl.contains(document.activeElement)) {
 					currentFocus = TableCellAttributes.read(td)
 				}
@@ -447,7 +457,9 @@ export class GridTableWidget extends WidgetType {
 			}
 
 			const newFocus = this.getCellAt(tableElement, newFocusCol, newFocusRow)
-			editorStorage.getEditorByElement(newFocus?.children[0])?.focus();
+			if (newFocus) {
+				editorStorage.getEditorByElement(newFocus?.children[0])?.focus();
+			}
 		}
 
 		this.flushDomToFile(view, tableElement)
@@ -859,7 +871,7 @@ export class GridTableWidget extends WidgetType {
 				}
 				editor.setChangeHandler(changeHandler);
 
-				colEl.style.width = suggestWidth(colEl.querySelector(".cm-contentContainer").innerText, ".", colEl);
+				colEl.style.width = suggestWidth((colEl.querySelector(".cm-contentContainer") as HTMLElement).innerText, ".", colEl);
 
 				new TableCellAttributes(colIdx, rowIdx, colIdx + rowIdx * content.columnCount).write(colEl);
 			}
@@ -1052,7 +1064,10 @@ let globalPlugin: GridTablePlugin | null = null;
 
 function genCellCommand(callbackIfInCell: (editor: Editor, view: MarkdownView, parentEditor: EditorView) => void) {
 	return function (checking: boolean, editor: Editor, view: MarkdownView) {
-		const isCell = editor.editorComponent.isCellEditor === true;
+		// @ts-expect-error Accessing editorComponent which is a hidden field
+		const editorComponent = editor.editorComponent;
+
+		const isCell = editorComponent.isCellEditor === true;
 		if (!isCell) {
 			return false;
 		}
@@ -1061,7 +1076,7 @@ function genCellCommand(callbackIfInCell: (editor: Editor, view: MarkdownView, p
 			return isCell;
 		}
 
-		callbackIfInCell(editor, view, editor.editorComponent.parentEditor);
+		callbackIfInCell(editor, view, editorComponent.parentEditor);
 	}
 }
 
@@ -1078,8 +1093,15 @@ export default class GridTablePlugin extends Plugin {
 			EditorView.focusChangeEffect.of((state, focusing) => {
 				if (focusing) {
 					const mdInfo = state.field(editorInfoField);
+					// @ts-expect-error magic field injected by MarkdownController in ObsidianEditorMagic
+					// which, if exists, indicates that the editor is a cell editor.
 					if (mdInfo.nestedMdController == undefined) {
-						this.app.workspace._activeEditor = null; // mdInfo;
+						// @ts-expect-error hidden field which gets filled when entering a nested editor
+						// but doesn't get cleared out when refocusing on the main editor, so it
+						// has to be cleared out manually (discovered via debugger).
+						// Without this, the command palette (and possibly other internal state)
+						// acts as if the focused editor is still the cell one, and not the main one.
+						this.app.workspace._activeEditor = null;
 					}
 				}
 
@@ -1090,7 +1112,9 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-add-row-below',
 			name: "Add Row Below",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
+				if (!view.file) return;
 				TableCommands.addRowBelow(cellEl, parentEditor, view.file)
 			}),
 		});
@@ -1098,7 +1122,9 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-add-row-above',
 			name: "Add Row Above",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
+				if (!view.file) return;
 				TableCommands.addRowAbove(cellEl, parentEditor, view.file)
 			}),
 		});
@@ -1106,7 +1132,9 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-add-col-to-right',
 			name: "Add Column to the Right",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
+				if (!view.file) return;
 				TableCommands.addColumnAfter(cellEl, parentEditor, view.file)
 			}),
 		});
@@ -1114,7 +1142,9 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-add-col-to-left',
 			name: "Add Column to the Left",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
+				if (!view.file) return;
 				TableCommands.addColumnBefore(cellEl, parentEditor, view.file)
 			}),
 		});
@@ -1122,6 +1152,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-delete-row',
 			name: "Delete Row",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.deleteRowAt(cellEl, parentEditor);
 			})
@@ -1130,6 +1161,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-delete-col',
 			name: "Delete Column",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.deleteColumnAt(cellEl, parentEditor);
 			})
@@ -1138,6 +1170,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-delete-table',
 			name: "Delete Table",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				const tableEl = cellEl.parentElement.parentElement;
 				TableCommands.deleteTable(tableEl, parentEditor);
@@ -1147,6 +1180,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-shift-row-up',
 			name: "Shift Row Up",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftRowUp(cellEl, parentEditor);
 			}),
@@ -1159,6 +1193,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-shift-row-down',
 			name: "Shift Row Down",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftRowDown(cellEl, parentEditor);
 			}),
@@ -1171,6 +1206,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-shift-col-right',
 			name: "Shift Column Right",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftColumnRight(cellEl, parentEditor);
 			}),
@@ -1183,6 +1219,7 @@ export default class GridTablePlugin extends Plugin {
 			id: 'grid-table-shift-col-left',
 			name: "Shift Column Left",
 			editorCheckCallback: genCellCommand((editor: Editor, view: MarkdownView, parentEditor: EditorView) => {
+				// @ts-expect-error editorComponent is a hidden field
 				const cellEl = editor.editorComponent.editorEl.parentElement.parentElement;
 				TableCommands.shiftColumnLeft(cellEl, parentEditor);
 			}),
