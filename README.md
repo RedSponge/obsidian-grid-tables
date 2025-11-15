@@ -1,4 +1,7 @@
-# WIP
+# Obsidian Grid Tables
+
+![](./docs/demo.png)
+## What?
 
 <!-- 
 # Obsidian Sample Plugin
