@@ -1186,7 +1186,7 @@ export default class GridTablePlugin extends Plugin {
 			}),
 			hotkeys: [{
 				key: "ArrowUp",
-				modifiers: ['Ctrl', 'Shift']
+				modifiers: ['Ctrl', 'Shift', 'Alt']
 			}]
 		});
 		this.addCommand({
@@ -1199,7 +1199,7 @@ export default class GridTablePlugin extends Plugin {
 			}),
 			hotkeys: [{
 				key: "ArrowDown",
-				modifiers: ['Ctrl', 'Shift']
+				modifiers: ['Ctrl', 'Shift', 'Alt']
 			}]
 		});
 		this.addCommand({
@@ -1212,7 +1212,7 @@ export default class GridTablePlugin extends Plugin {
 			}),
 			hotkeys: [{
 				key: "ArrowRight",
-				modifiers: ['Ctrl', 'Shift']
+				modifiers: ['Ctrl', 'Shift', 'Alt']
 			}]
 		});
 		this.addCommand({
@@ -1225,7 +1225,7 @@ export default class GridTablePlugin extends Plugin {
 			}),
 			hotkeys: [{
 				key: "ArrowLeft",
-				modifiers: ['Ctrl', 'Shift']
+				modifiers: ['Ctrl', 'Shift', 'Alt']
 			}]
 		});
 		this.addCommand({
