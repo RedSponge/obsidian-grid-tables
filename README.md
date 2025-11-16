@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/8f466ad7-51f5-4a17-8dcb-8257050becf4
 ## Disclaimers
 
 - _This plugin is still in very early stages of development! Things may break or be buggy!_
-- _I am not a frontend developer. I have no idea what I'm doing. The plugin's code is, to put it mildly, abhorrent. Any PRs and suggestions are more than welcome_.
+- _I am not a frontend developer. I have no idea what I'm doing. The plugin's code is, to put it mildly, abhorrent. Any PRs or suggestions are more than welcome_.
 
 ## What is this plugin?
 This plugin aims to provide a replacement for vanilla Obsidian tables' biggest shortcoming (in my opinion): lacking proper multiline support. The plugin solves this issue by opting for a different (yet still plaintext) table format:
@@ -35,7 +35,7 @@ The plugin's table format:
 +-----------+-----------+
 ```
 
-This allows the plugin to treat each table cell as its own, self-contained editor, and sidesteps the limitations the regular Markdown format comes with.
+This allows the plugin to treat each table cell as its own self-contained editor, and therefore sidesteps the limitations the regular Markdown format comes with.
 
 
 ## Installation
@@ -44,7 +44,7 @@ The plugin hasn't been submitted to Obsidian yet, so for now you have to install
 
 ## Features
 - Edit tables with complex, multiline content.
-- Each table cell is its own embedded Obsidian editor, so everything works they way you expect!
+- Each table cell is its own embedded Obsidian editor, so everything works the way you expect!
 - Navigate and modify tables using the keyboard, and an extensive set of commands!
 
 ![commands](./docs/commands.png)
