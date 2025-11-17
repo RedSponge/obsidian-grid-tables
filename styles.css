@@ -46,13 +46,26 @@ This CSS file styles the grid-tables editor widget and its controls.
     --gt-gutter-right: 19px;
     --gt-gutter-bottom: 19px;
 
-    display: flex;
+    display: inline-block; /* shrink to table width */
     position: relative;
-    width: fit-content;
+    width: max-content;     /* expand to fit table, but not full editor width */
+    max-width: none;
     padding-right: var(--gt-gutter-right);
     padding-bottom: var(--gt-gutter-bottom);
     /* Ensure children can render fully if they sit near the edge */
     overflow: visible;
+}
+
+/* Dedicated horizontal scroller so the table can overflow without scrolling the whole editor */
+.obsidian-grid-tables-scroll {
+    position: relative; /* establishes containing block for absolutely-positioned children if needed */
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable both-edges;
 }
 
 /* Generic hot-zone button styling */

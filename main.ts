@@ -1,10 +1,10 @@
-import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownPostProcessorContext, MarkdownRenderer, MarkdownView, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
+import { App, Editor, editorEditorField, editorInfoField, editorLivePreviewField, MarkdownPostProcessorContext, MarkdownRenderer, MarkdownRenderChild, MarkdownView, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { Extension, Facet, Prec, RangeSetBuilder, StateField, Transaction } from "@codemirror/state"
 import { Command, Decoration, DecorationSet, EditorView, keymap, WidgetType } from '@codemirror/view'
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableCell, TableContent, TableRow } from 'src/TableData';
 import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
-import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS, EDITOR_TABLE_BUTTON_CLASS, EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_CONTAINER_CLASS, EDITOR_TABLE_RESIZE_HANDLE_CLASS, EDITOR_TABLE_ROW_CLASS, PLUS_SVG } from 'src/consts';
+import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS, EDITOR_TABLE_BUTTON_CLASS, EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_CONTAINER_CLASS, EDITOR_TABLE_RESIZE_HANDLE_CLASS, EDITOR_TABLE_ROW_CLASS, EDITOR_TABLE_SCROLL_CLASS, PLUS_SVG } from 'src/consts';
 import { BiMap } from 'src/BiMap';
 
 // Remember to rename these classes and interfaces!
@@ -320,6 +320,7 @@ export class GridTableWidget extends WidgetType {
 	file: TFile
 	uid: number
 	editorStorage: ObsidianEditorStorage
+	private containerClickHandler: ((e: MouseEvent) => void) | null = null;
 
 	constructor(
 		contentToWriteToState: TableContent,
@@ -351,7 +352,7 @@ export class GridTableWidget extends WidgetType {
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
 		this.loadEditors(view);
 
-		const tableEl = dom.querySelector('table');
+		const tableEl = dom.querySelector(`:scope .${EDITOR_TABLE_CLASS}`) as HTMLTableElement | null;
 		if (tableEl == null) return false;
 		if (!GridTablePlugin.instance) return false;
 
@@ -815,27 +816,42 @@ export class GridTableWidget extends WidgetType {
 			this.initialVisualWidths ?? undefined,
 		);
 
+		// Build: scroller (outer) -> container (inner) -> table + buttons
+		const scroller = document.createElement("div");
+		scroller.classList.add(EDITOR_TABLE_SCROLL_CLASS);
+		scroller.appendChild(div);
 		div.appendChild(table);
 
 		const newColButton = document.createElement("div");
 		newColButton.innerHTML = PLUS_SVG;
 		newColButton.classList.add(EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS);
 		newColButton.classList.add(EDITOR_TABLE_BUTTON_CLASS);
-		newColButton.addEventListener('click', (_) => {
-			GridTableWidget.addColumnAt(view, table, this.file, null);
-		})
 		div.appendChild(newColButton);
 
 		const newRowButton = document.createElement("div");
 		newRowButton.innerHTML = PLUS_SVG;
 		newRowButton.classList.add(EDITOR_TABLE_ADD_ROW_BUTTON_CLASS);
 		newRowButton.classList.add(EDITOR_TABLE_BUTTON_CLASS);
-		newRowButton.addEventListener('click', (_) => {
-			GridTableWidget.addRowAfter(view, table, this.file, null);
-		})
 		div.appendChild(newRowButton);
 
-		return div;
+		// Single delegated listener on the container to avoid plugin-level retention
+		this.containerClickHandler = (event: MouseEvent) => {
+			const target = event.target as HTMLElement | null;
+			if (!target) return;
+			const button = target.closest(`.${EDITOR_TABLE_BUTTON_CLASS}`);
+			if (!button) return;
+			if ((button as HTMLElement).classList.contains(EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS)) {
+				GridTableWidget.addColumnAt(view, table, this.file, null);
+				return;
+			}
+			if ((button as HTMLElement).classList.contains(EDITOR_TABLE_ADD_ROW_BUTTON_CLASS)) {
+				GridTableWidget.addRowAfter(view, table, this.file, null);
+				return;
+			}
+		};
+		div.addEventListener('click', this.containerClickHandler);
+
+		return scroller;
 	}
 
 	static freeTD(editors: ObsidianEditorStorage, td: Element) {
@@ -1004,21 +1020,13 @@ export class GridTableWidget extends WidgetType {
 
 					const handle = document.createElement("div");
 					handle.classList.add(EDITOR_TABLE_RESIZE_HANDLE_CLASS);
-					const pluginInst = GridTablePlugin.instance;
-					if (pluginInst) {
-						pluginInst.registerDomEvent(handle, "pointerdown", (event: Event) => {
-							const pointerEvent = event as PointerEvent;
-							pointerEvent.preventDefault();
-							pointerEvent.stopPropagation();
-							GridTableWidget.startColumnResize(view, tableEl, colIdx, widthValue, pointerEvent);
-						});
-					} else {
-						handle.addEventListener("pointerdown", (event: PointerEvent) => {
-							event.preventDefault();
-							event.stopPropagation();
-							GridTableWidget.startColumnResize(view, tableEl, colIdx, widthValue, event);
-						});
-					}
+
+					// Attach directly to the handle; it is ephemeral and will be GC'd with the DOM node.
+					handle.addEventListener("pointerdown", (event: PointerEvent) => {
+						event.preventDefault();
+						event.stopPropagation();
+						GridTableWidget.startColumnResize(view, tableEl, colIdx, widthValue, event);
+					});
 					colEl.appendChild(handle);
 				}
 			}
@@ -1155,15 +1163,26 @@ export class GridTableWidget extends WidgetType {
 		window.addEventListener("pointercancel", onUpOrCancel);
 	}
 
-	destroy(dom: HTMLElement): void {
-		const table = dom.querySelector(":scope > table");
+		destroy(dom: HTMLElement): void {
+		// toDOM returns the scroller element as the widget root.
+		// Structure: scroller (root) > container > table
+		const container = dom.querySelector(`:scope > .${EDITOR_TABLE_CONTAINER_CLASS}`) as HTMLElement | null;
+		if (container && this.containerClickHandler) {
+			container.removeEventListener('click', this.containerClickHandler);
+			this.containerClickHandler = null;
+		}
+		const table = container?.querySelector(`:scope > .${EDITOR_TABLE_CLASS}`) as HTMLTableElement | null;
 		if (!table) return;
 
+		// Be defensive: during teardown editorStorage may be unavailable.
+		const editors = this.editorStorage;
+		if (!editors) return;
+
 		for (const tr of Array.from(table.querySelectorAll(":scope > tr"))) {
-			for (const td of Array.from(tr.querySelectorAll(":scope > td > div"))) {
-				const editor = this.editorStorage.getEditorByElement(td);
+			for (const editorDiv of Array.from(tr.querySelectorAll(":scope > td > div"))) {
+				const editor = editors.getEditorByElement(editorDiv);
 				if (editor) {
-					this.editorStorage.delEditor(editor);
+					editors.delEditor(editor);
 				}
 			}
 		}
@@ -1298,9 +1317,16 @@ function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProce
 		const tableEl = document.createElement("table");
 		tableEl.classList.add(EDITOR_TABLE_CLASS);
 
+		const scrollerEl = document.createElement("div");
+		scrollerEl.classList.add(EDITOR_TABLE_SCROLL_CLASS);
 		const containerEl = document.createElement("div");
 		containerEl.classList.add(EDITOR_TABLE_CONTAINER_CLASS);
+		scrollerEl.appendChild(containerEl);
 		containerEl.appendChild(tableEl);
+
+		// Create a render owner tied to this block so children dispose on re-render
+		const renderChild = new MarkdownRenderChild(scrollerEl);
+		context.addChild(renderChild);
 
 		for (const row of table.rows) {
 			const tr = document.createElement("tr");
@@ -1316,7 +1342,7 @@ function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProce
 					// Otherwise, they are approximate character widths.
 					td.style.width = hasVisual ? `${cssWidth}px` : `${cssWidth}ch`;
 				}
-				MarkdownRenderer.render(plugin.app, cell.content, td, context.sourcePath, plugin)
+				MarkdownRenderer.render(plugin.app, cell.content, td, context.sourcePath, renderChild)
 				tr.appendChild(td);
 			}
 			tableEl.appendChild(tr);
@@ -1324,10 +1350,15 @@ function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProce
 
 		const leftoverText = text.split("\n").slice(parts.length).join("\n");
 		const leftover = document.createElement("div");
-		MarkdownRenderer.render(plugin.app, leftoverText, leftover, context.sourcePath, plugin);
-		p.replaceWith(containerEl);
-		for (const child of Array.from(leftover.children)) {
-			containerEl.parentElement?.appendChild(child);
+		MarkdownRenderer.render(plugin.app, leftoverText, leftover, context.sourcePath, renderChild);
+		p.replaceWith(scrollerEl);
+		const host = scrollerEl.parentElement;
+		if (host) {
+			const frag = document.createDocumentFragment();
+			for (const node of Array.from(leftover.children)) {
+				frag.appendChild(node);
+			}
+			host.appendChild(frag);
 		}
 	}
 }

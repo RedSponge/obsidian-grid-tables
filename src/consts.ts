@@ -4,6 +4,7 @@ export const EDITOR_TABLE_ROW_CLASS = "obsidian-grid-tables-row";
 export const EDITOR_TABLE_CELL_CLASS = "obsidian-grid-tables-cell";
 
 export const EDITOR_TABLE_CONTAINER_CLASS = "obsidian-grid-tables-container";
+export const EDITOR_TABLE_SCROLL_CLASS = "obsidian-grid-tables-scroll";
 
 export const EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS = "obsidian-grid-tables-add-col-button";
 export const EDITOR_TABLE_ADD_ROW_BUTTON_CLASS = "obsidian-grid-tables-add-row-button";
