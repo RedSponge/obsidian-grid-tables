@@ -275,4 +275,70 @@ describe("tableContentToString", () => {
             "+-+---+"
         );
     })
+    test("Respects base widths when content is shorter", () => {
+        const table = new TableContent([
+            new TableRow([
+                new TableCell("a"),
+                new TableCell("b"),
+            ]),
+        ]);
+
+        const text = tableContentToString(table, [10, 5]);
+        const parts = lookAheadForTableParts(text.split("\n"));
+        const sep = parts[0] as SeparatorLine;
+
+        expect(sep.columnLengths).toEqual([10, 5]);
+    })
+    test("Expands base widths when content is longer", () => {
+        const table = new TableContent([
+            new TableRow([
+                new TableCell("abcd"),
+            ]),
+        ]);
+
+        const text = tableContentToString(table, [2]);
+        const parts = lookAheadForTableParts(text.split("\n"));
+        const sep = parts[0] as SeparatorLine;
+
+        expect(sep.columnLengths[0]).toBeGreaterThanOrEqual(4);
+    })
+
+    test("Roundtrip with base widths is stable", () => {
+        const original = [
+            "+----+------+\n",
+            "| a  | b    |\n",
+            "| c  | dddd |\n",
+            "+----+------+",
+        ].join("");
+
+        const parts1 = lookAheadForTableParts(original.split("\n"));
+        const table1 = tryParseTableFromParsedParts(parts1);
+        const baseWidths1 = (parts1[0] as SeparatorLine).columnLengths;
+
+        const text1 = tableContentToString(table1, baseWidths1);
+        const parts2 = lookAheadForTableParts(text1.split("\n"));
+        const table2 = tryParseTableFromParsedParts(parts2);
+
+        expect(table2).toStrictEqual(table1);
+        expect((parts2[0] as SeparatorLine).columnLengths).toEqual(baseWidths1);
+    })
+
+    test("Base widths shrink but never below content minimum", () => {
+        const table = new TableContent([
+            new TableRow([
+                new TableCell("longword"),
+                new TableCell("x"),
+            ]),
+        ]);
+
+        // Intentionally too small for the first column; serializer should bump it.
+        const text = tableContentToString(table, [2, 3]);
+        const parts = lookAheadForTableParts(text.split("\n"));
+        const sep = parts[0] as SeparatorLine;
+
+        // First column must be at least content length + 2.
+        expect(sep.columnLengths[0]).toBeGreaterThanOrEqual("longword".length + 2);
+        // Second column can stay as requested or be expanded, but must parse.
+        expect(sep.columnLengths[1]).toBeGreaterThanOrEqual(1);
+    })
 })

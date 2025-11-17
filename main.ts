@@ -4,7 +4,7 @@ import { Command, Decoration, DecorationSet, EditorView, keymap, WidgetType } fr
 import { lookAheadForTableParts, SeparatorLine, tableContentToString, tryParseTableFromParsedParts } from 'src/TableSerde';
 import { TableCell, TableContent, TableRow } from 'src/TableData';
 import { ObsidianEditorAdapter } from 'src/ObsidianEditorAdapter';
-import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS, EDITOR_TABLE_BUTTON_CLASS, EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_CONTAINER_CLASS, EDITOR_TABLE_ROW_CLASS, PLUS_SVG } from 'src/consts';
+import { EDITOR_TABLE_ADD_COLUMN_BUTTON_CLASS, EDITOR_TABLE_ADD_ROW_BUTTON_CLASS, EDITOR_TABLE_BUTTON_CLASS, EDITOR_TABLE_CELL_CLASS, EDITOR_TABLE_CLASS, EDITOR_TABLE_CONTAINER_CLASS, EDITOR_TABLE_RESIZE_HANDLE_CLASS, EDITOR_TABLE_ROW_CLASS, PLUS_SVG } from 'src/consts';
 import { BiMap } from 'src/BiMap';
 
 // Remember to rename these classes and interfaces!
@@ -15,10 +15,16 @@ function trimLines(str: string): string {
 
 interface GridTablePluginSettings {
 	mySetting: string;
+	// When enabled, column widths are treated as opinionated visual widths and
+	// are stored as numeric hints alongside separator lines. This allows
+	// columns to be visually narrower than their longest line while keeping the
+	// underlying ASCII grid structurally valid.
+	opinionatedSizes: boolean;
 }
 
 const DEFAULT_SETTINGS: GridTablePluginSettings = {
-	mySetting: 'default'
+	mySetting: 'default',
+	opinionatedSizes: false,
 }
 
 function* enumerate<T>(iter: Iterable<T>): Generator<[number, T]> {
@@ -140,29 +146,47 @@ class TableAttributes {
 	static readonly ATTRIBUTE_SOURCE_LENGTH = "source-length";
 	static readonly ATTRIBUTE_COLS = "cols";
 	static readonly ATTRIBUTE_ROWS = "rows";
+	static readonly ATTRIBUTE_COL_WIDTHS = "col-widths";
 
 	sourceLength: number
 	cols: number
 	rows: number
+	colWidths: number[] | null
 
-	constructor(sourceLength: number, cols: number, rows: number) {
+	constructor(sourceLength: number, cols: number, rows: number, colWidths: number[] | null = null) {
 		this.sourceLength = sourceLength;
 		this.cols = cols;
 		this.rows = rows;
+		this.colWidths = colWidths;
 	}
 
 	write(el: Element) {
 		el.setAttribute(TableAttributes.ATTRIBUTE_SOURCE_LENGTH, this.sourceLength.toString());
 		el.setAttribute(TableAttributes.ATTRIBUTE_COLS, this.cols.toString());
 		el.setAttribute(TableAttributes.ATTRIBUTE_ROWS, this.rows.toString());
+
+		if (this.colWidths && this.colWidths.length > 0) {
+			el.setAttribute(TableAttributes.ATTRIBUTE_COL_WIDTHS, this.colWidths.join(","));
+		} else {
+			el.removeAttribute(TableAttributes.ATTRIBUTE_COL_WIDTHS);
+		}
 	}
 
 	static read(el: Element): TableAttributes {
-		return new TableAttributes(
-			parseInt(getAttrOrErr(el, TableAttributes.ATTRIBUTE_SOURCE_LENGTH)),
-			parseInt(getAttrOrErr(el, TableAttributes.ATTRIBUTE_COLS)),
-			parseInt(getAttrOrErr(el, TableAttributes.ATTRIBUTE_ROWS)),
-		)
+		const sourceLength = parseInt(getAttrOrErr(el, TableAttributes.ATTRIBUTE_SOURCE_LENGTH));
+		const cols = parseInt(getAttrOrErr(el, TableAttributes.ATTRIBUTE_COLS));
+		const rows = parseInt(getAttrOrErr(el, TableAttributes.ATTRIBUTE_ROWS));
+
+		const widthsAttr = el.getAttr(TableAttributes.ATTRIBUTE_COL_WIDTHS);
+		let colWidths: number[] | null = null;
+		if (widthsAttr) {
+			const parts = widthsAttr.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n) && n > 0);
+			if (parts.length > 0) {
+				colWidths = parts;
+			}
+		}
+
+		return new TableAttributes(sourceLength, cols, rows, colWidths);
 	}
 }
 
@@ -196,11 +220,6 @@ class TableCellAttributes {
 	}
 }
 
-
-function suggestWidth(content: string, sourcePath: string, container: HTMLElement) {
-	const longestLine = content.split("\n").reduce((a, b, i, ar) => a.length > b.length ? a : b);
-	return `${Math.max(longestLine.length + 4, 5)}ch`
-}
 
 const nestedEditorsFacet = Facet.define<ObsidianEditorStorage>();
 
@@ -295,16 +314,26 @@ export class GridTableWidget extends WidgetType {
 
 	readonly contentToWriteToState: TableContent
 	readonly originalLength: number
+	readonly baseSeparatorWidths: number[] | null
+	readonly initialVisualWidths: number[] | null
 
 	file: TFile
 	uid: number
 	editorStorage: ObsidianEditorStorage
 
-	constructor(contentToWriteToState: TableContent, file: TFile, originalLength: number) {
+	constructor(
+		contentToWriteToState: TableContent,
+		file: TFile,
+		originalLength: number,
+		baseSeparatorWidths: number[] | null = null,
+		initialVisualWidths: number[] | null = null,
+	) {
 		super()
 		this.contentToWriteToState = contentToWriteToState;
 		this.file = file;
 		this.originalLength = originalLength;
+		this.baseSeparatorWidths = baseSeparatorWidths ? baseSeparatorWidths.slice() : null;
+		this.initialVisualWidths = initialVisualWidths ? initialVisualWidths.slice() : null;
 
 		if (GridTableWidget.uids == undefined) {
 			GridTableWidget.uids = 0;
@@ -324,9 +353,18 @@ export class GridTableWidget extends WidgetType {
 
 		const tableEl = dom.querySelector('table');
 		if (tableEl == null) return false;
-		if (!globalPlugin) return false;
+		if (!GridTablePlugin.instance) return false;
 
-		GridTableWidget.syncDomTableWithContent(view, tableEl, this.contentToWriteToState, this.originalLength, this.file, globalPlugin);
+		GridTableWidget.syncDomTableWithContent(
+			view,
+			tableEl as HTMLTableElement,
+			this.contentToWriteToState,
+			this.originalLength,
+			this.file,
+			GridTablePlugin.instance,
+			this.baseSeparatorWidths ?? undefined,
+			this.initialVisualWidths ?? undefined,
+		);
 
 		return true;
 	}
@@ -754,19 +792,28 @@ export class GridTableWidget extends WidgetType {
 	toDOM(view: EditorView): HTMLElement {
 		this.loadEditors(view);
 		const div = document.createElement("div");
-		if (globalPlugin == null) {
+		if (GridTablePlugin.instance == null) {
 			div.innerText = "Loading...";
 			return div;
 		}
 
-		const plugin = globalPlugin;
+		const plugin = GridTablePlugin.instance;
 
 		div.classList.add(EDITOR_TABLE_CONTAINER_CLASS);
 
 		const table = document.createElement("table");
 		table.classList.add(EDITOR_TABLE_CLASS);
 
-		GridTableWidget.syncDomTableWithContent(view, table, this.contentToWriteToState, this.originalLength, this.file, plugin);
+		GridTableWidget.syncDomTableWithContent(
+			view,
+			table,
+			this.contentToWriteToState,
+			this.originalLength,
+			this.file,
+			plugin,
+			this.baseSeparatorWidths ?? undefined,
+			this.initialVisualWidths ?? undefined,
+		);
 
 		div.appendChild(table);
 
@@ -841,19 +888,87 @@ export class GridTableWidget extends WidgetType {
 		}
 	}
 
-	static syncDomTableWithContent(view: EditorView, tableEl: HTMLTableElement, content: TableContent, sourceLength: number, file: TFile, plugin: Plugin) {
+	static syncDomTableWithContent(
+		view: EditorView,
+		tableEl: HTMLTableElement,
+		content: TableContent,
+		sourceLength: number,
+		file: TFile,
+		plugin: Plugin,
+		baseSeparatorWidths?: number[],
+		initialVisualWidths?: number[],
+	) {
 		const [editors] = view.state.facet(nestedEditorsFacet);
 
 		this.syncDomTableDimensions(view, tableEl, file, content.columnCount, content.rowCount);
 		const rowElements = Array.from(tableEl.querySelectorAll(":scope > tr"));
 
+		// Compute logical separator widths per column, derived from either the base
+		// widths (coming from the parsed separator line) or from the content.
+		const colContentWidths: number[] = [];
+		for (const row of content.rows) {
+			for (let colIdx = 0; colIdx < row.cells.length; colIdx++) {
+				if (colContentWidths.length <= colIdx) {
+					colContentWidths.push(0);
+				}
+				const lines = row.cells[colIdx].content.split(/\n/);
+				const maxLen = Math.max(...lines.map((l) => l.length));
+				if (maxLen > colContentWidths[colIdx]) {
+					colContentWidths[colIdx] = maxLen;
+				}
+			}
+		}
+
+		const separatorWidths: number[] = [];
+		for (let colIdx = 0; colIdx < colContentWidths.length; colIdx++) {
+			const contentWidth = colContentWidths[colIdx] || 0;
+			let sepWidth = baseSeparatorWidths && baseSeparatorWidths[colIdx] ? baseSeparatorWidths[colIdx] : 0;
+
+			if (sepWidth <= 0) {
+				sepWidth = contentWidth === 0 ? 1 : contentWidth + 2;
+			} else if (contentWidth > sepWidth) {
+				sepWidth = contentWidth;
+			}
+
+			separatorWidths.push(sepWidth);
+		}
+
+		// Determine visual widths. When opinionatedSizes is enabled, these are the
+		// independent visual widths we persist and later encode as numeric hints
+		// alongside separator lines. Otherwise, they simply mirror the structural
+		// widths and are stored as the structural defaults.
+		const pluginInstance = GridTablePlugin.instance;
+		const useOpinionated = pluginInstance?.settings.opinionatedSizes === true;
+		const existingAttrs = tableEl.hasAttribute(TableAttributes.ATTRIBUTE_SOURCE_LENGTH)
+			? TableAttributes.read(tableEl)
+			: null;
+
+		const visualWidths: number[] = [];
+		for (let colIdx = 0; colIdx < separatorWidths.length; colIdx++) {
+			let visualWidth: number;
+			if (useOpinionated) {
+				if (existingAttrs && existingAttrs.colWidths && existingAttrs.colWidths[colIdx] != null) {
+					visualWidth = existingAttrs.colWidths[colIdx];
+				} else if (initialVisualWidths && initialVisualWidths[colIdx] != null && initialVisualWidths[colIdx] > 0) {
+					// First render in opinionated mode: respect visual hints encoded in the separator.
+					visualWidth = initialVisualWidths[colIdx];
+				} else {
+					visualWidth = separatorWidths[colIdx];
+				}
+			} else {
+				// Non-opinionated mode: no separate visual notion; mirror structure.
+				visualWidth = separatorWidths[colIdx];
+			}
+			if (visualWidth < 1) visualWidth = 1;
+			visualWidths.push(visualWidth);
+		}
 
 		for (const [rowIdx, row] of enumerate(content.rows)) {
 			const rowEl = rowElements[rowIdx];
 			const tds: HTMLTableCellElement[] = Array.from(rowEl.querySelectorAll(":scope > td"));
 			for (const [colIdx, col] of enumerate(row.cells)) {
 				const colEl = tds[colIdx];
-				const editorContainer = colEl.querySelector(':scope > div');
+				const editorContainer = colEl.querySelector(":scope > div");
 				if (editorContainer == undefined) {
 					console.error(colEl);
 					throw new Error("No editor container for td in table");
@@ -871,13 +986,49 @@ export class GridTableWidget extends WidgetType {
 				}
 				editor.setChangeHandler(changeHandler);
 
-				colEl.style.width = suggestWidth((colEl.querySelector(".cm-contentContainer") as HTMLElement).innerText, ".", colEl);
+				const widthValue = visualWidths[colIdx] || separatorWidths[colIdx] || 1;
+				const cssWidth = Math.max(widthValue, 1);
+				// In opinionated mode, numeric hints represent pixels. Otherwise, they
+				// represent approximate character widths.
+				colEl.style.width = useOpinionated ? `${cssWidth}px` : `${cssWidth}ch`;
 
 				new TableCellAttributes(colIdx, rowIdx, colIdx + rowIdx * content.columnCount).write(colEl);
+
+				// Add a resize handle only for the first row's cells so we get a single
+				// handle per column.
+				if (rowIdx === 0) {
+					// Remove any existing handles to avoid stacking multiples when the widget re-renders.
+					for (const existing of Array.from(colEl.getElementsByClassName(EDITOR_TABLE_RESIZE_HANDLE_CLASS))) {
+						existing.remove();
+					}
+
+					const handle = document.createElement("div");
+					handle.classList.add(EDITOR_TABLE_RESIZE_HANDLE_CLASS);
+					const pluginInst = GridTablePlugin.instance;
+					if (pluginInst) {
+						pluginInst.registerDomEvent(handle, "pointerdown", (event: Event) => {
+							const pointerEvent = event as PointerEvent;
+							pointerEvent.preventDefault();
+							pointerEvent.stopPropagation();
+							GridTableWidget.startColumnResize(view, tableEl, colIdx, widthValue, pointerEvent);
+						});
+					} else {
+						handle.addEventListener("pointerdown", (event: PointerEvent) => {
+							event.preventDefault();
+							event.stopPropagation();
+							GridTableWidget.startColumnResize(view, tableEl, colIdx, widthValue, event);
+						});
+					}
+					colEl.appendChild(handle);
+				}
 			}
 		}
 
-		new TableAttributes(sourceLength, content.columnCount, content.rowCount).write(tableEl);
+		// Persist column widths. In opinionated mode, these are independent visual
+		// widths. In non-opinionated mode, they are the structural defaults used as
+		// base separator widths on the next serialization.
+		const widthsToPersist = useOpinionated ? visualWidths : separatorWidths;
+		new TableAttributes(sourceLength, content.columnCount, content.rowCount, widthsToPersist).write(tableEl);
 	}
 
 	static tableContentFromDOM(view: EditorView, tableElement: HTMLTableElement) {
@@ -906,7 +1057,19 @@ export class GridTableWidget extends WidgetType {
 
 	static flushDomToFile(view: EditorView, tableElement: HTMLTableElement) {
 		const newTable = this.tableContentFromDOM(view, tableElement);
-		const newTableRepr = tableContentToString(newTable);
+		const tableAttrs = TableAttributes.read(tableElement);
+		const pluginInstance = GridTablePlugin.instance;
+		const useOpinionated = pluginInstance?.settings.opinionatedSizes === true;
+		let newTableRepr: string;
+		if (useOpinionated) {
+			const visualWidths = tableAttrs.colWidths ?? undefined;
+			// Structural separator widths are always derived from content; visualWidths
+			// (when provided) are encoded as numeric hints alongside the separators.
+			newTableRepr = tableContentToString(newTable, undefined, visualWidths);
+		} else {
+			const baseWidths = tableAttrs.colWidths ?? undefined;
+			newTableRepr = tableContentToString(newTable, baseWidths);
+		}
 
 		this.writeOverTable(view, tableElement, newTableRepr);
 	}
@@ -919,6 +1082,77 @@ export class GridTableWidget extends WidgetType {
 		view.dispatch({
 			changes: { from: from, to: to, insert: newContent }
 		})
+	}
+
+	static startColumnResize(
+		view: EditorView,
+		tableElement: HTMLTableElement,
+		colIndex: number,
+		initialWidth: number,
+		startEvent: PointerEvent,
+	) {
+		const attrs = TableAttributes.read(tableElement);
+		const currentWidths: number[] = attrs.colWidths ? attrs.colWidths.slice() : [];
+		const pluginInstance = GridTablePlugin.instance;
+		const useOpinionated = pluginInstance?.settings.opinionatedSizes === true;
+
+		while (currentWidths.length <= colIndex) {
+			currentWidths.push(initialWidth);
+		}
+
+		const firstCell = tableElement.querySelector(`:scope > tr > td[col="${colIndex}"]`) as HTMLTableCellElement | null;
+		if (!firstCell) return;
+
+		const rect = firstCell.getBoundingClientRect();
+		const startX = startEvent.clientX;
+
+		let basePixelWidth = rect.width || 1;
+		let baseCharWidth = currentWidths[colIndex] || initialWidth || 1;
+		if (useOpinionated) {
+			// In opinionated mode, widths are stored as pixels.
+			basePixelWidth = currentWidths[colIndex] || rect.width || 1;
+		} else {
+			// In non-opinionated mode, widths are character-based.
+			baseCharWidth = currentWidths[colIndex] || initialWidth || 1;
+		}
+
+		const pixelsPerChar = basePixelWidth / Math.max(baseCharWidth, 1);
+
+		const onMove = (e: PointerEvent) => {
+			const deltaPx = e.clientX - startX;
+			let newWidth: number;
+			if (useOpinionated) {
+				// Pixel-based resizing.
+				newWidth = basePixelWidth + deltaPx;
+			} else {
+				// Character-based resizing.
+				const deltaChars = Math.round(deltaPx / Math.max(pixelsPerChar, 1));
+				newWidth = baseCharWidth + deltaChars;
+			}
+			if (newWidth < 1) newWidth = 1;
+
+			currentWidths[colIndex] = newWidth;
+			const updatedAttrs = new TableAttributes(attrs.sourceLength, attrs.cols, attrs.rows, currentWidths);
+			updatedAttrs.write(tableElement);
+
+			const cssWidth = Math.max(newWidth, 1);
+			for (const cell of Array.from(tableElement.querySelectorAll(`:scope > tr > td[col="${colIndex}"]`)) as HTMLTableCellElement[]) {
+				(cell as HTMLTableCellElement).style.width = useOpinionated ? `${cssWidth}px` : `${cssWidth}ch`;
+			}
+		};
+
+		const onUpOrCancel = (e: PointerEvent) => {
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", onUpOrCancel);
+			window.removeEventListener("pointercancel", onUpOrCancel);
+			GridTableWidget.flushDomToFile(view, tableElement);
+		};
+
+		// These listeners are short-lived (per resize gesture) and are removed
+		// explicitly in onUpOrCancel, so we attach them directly to window.
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", onUpOrCancel);
+		window.addEventListener("pointercancel", onUpOrCancel);
 	}
 
 	destroy(dom: HTMLElement): void {
@@ -935,6 +1169,7 @@ export class GridTableWidget extends WidgetType {
 		}
 	}
 }
+
 
 function* accessIterator<T>(whole: (index: number) => T, startIndex: number, maxIndex: number) {
 	for (let index = startIndex; index < maxIndex; index++) {
@@ -1004,8 +1239,17 @@ const tableField = StateField.define<DecorationSet>({
 				if (!fileRef) {
 					throw new Error("No fileRef!");
 				}
+				let baseWidths: number[] | null = null;
+				let visualWidths: number[] | null = null;
+				if (parts.length > 0 && parts[0] instanceof SeparatorLine) {
+					const sep = parts[0] as SeparatorLine;
+					baseWidths = sep.columnLengths.slice();
+					if (sep.visualWidths && sep.visualWidths.length > 0) {
+						visualWidths = sep.visualWidths.slice();
+					}
+				}
 				builder.add(from, to, Decoration.replace({
-					widget: new GridTableWidget(table, fileRef, to - from),
+					widget: new GridTableWidget(table, fileRef, to - from, baseWidths, visualWidths),
 					block: true,
 				}));
 			}
@@ -1021,7 +1265,8 @@ const tableField = StateField.define<DecorationSet>({
 });
 
 function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProcessorContext): void {
-	if (globalPlugin == null) return;
+	const plugin = GridTablePlugin.instance;
+	if (plugin == null) return;
 
 	const paragraphs = element.findAll("p");
 	for (const p of paragraphs) {
@@ -1039,12 +1284,39 @@ function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProce
 			continue;
 		}
 
+		// Derive visual column widths from the first separator line, if present.
+		let separatorWidths: number[] | null = null;
+		let visualWidths: number[] | null = null;
+		if (parts.length > 0 && parts[0] instanceof SeparatorLine) {
+			const sep = parts[0] as SeparatorLine;
+			separatorWidths = sep.columnLengths.slice();
+			if (plugin.settings.opinionatedSizes && sep.visualWidths && sep.visualWidths.length > 0) {
+				visualWidths = sep.visualWidths.slice();
+			}
+		}
+
 		const tableEl = document.createElement("table");
+		tableEl.classList.add(EDITOR_TABLE_CLASS);
+
+		const containerEl = document.createElement("div");
+		containerEl.classList.add(EDITOR_TABLE_CONTAINER_CLASS);
+		containerEl.appendChild(tableEl);
+
 		for (const row of table.rows) {
 			const tr = document.createElement("tr");
-			for (const cell of row.cells) {
+			for (const [colIdx, cell] of enumerate(row.cells)) {
 				const td = document.createElement("td");
-				MarkdownRenderer.render(globalPlugin.app, cell.content, td, context.sourcePath, globalPlugin)
+				const hasVisual = plugin.settings.opinionatedSizes && visualWidths && visualWidths.length > colIdx;
+				const baseWidth = hasVisual
+					? (visualWidths as number[])[colIdx]
+					: (separatorWidths?.[colIdx] ?? 1);
+				const cssWidth = Math.max(baseWidth, 1);
+				if (hasVisual || separatorWidths) {
+					// In opinionated mode with visual hints, widths are pixel-based.
+					// Otherwise, they are approximate character widths.
+					td.style.width = hasVisual ? `${cssWidth}px` : `${cssWidth}ch`;
+				}
+				MarkdownRenderer.render(plugin.app, cell.content, td, context.sourcePath, plugin)
 				tr.appendChild(td);
 			}
 			tableEl.appendChild(tr);
@@ -1052,15 +1324,13 @@ function renderTablesInMarkdown(element: HTMLElement, context: MarkdownPostProce
 
 		const leftoverText = text.split("\n").slice(parts.length).join("\n");
 		const leftover = document.createElement("div");
-		MarkdownRenderer.render(globalPlugin.app, leftoverText, leftover, context.sourcePath, globalPlugin);
-		p.replaceWith(tableEl);
+		MarkdownRenderer.render(plugin.app, leftoverText, leftover, context.sourcePath, plugin);
+		p.replaceWith(containerEl);
 		for (const child of Array.from(leftover.children)) {
-			tableEl.parentElement?.appendChild(child);
+			containerEl.parentElement?.appendChild(child);
 		}
 	}
 }
-
-let globalPlugin: GridTablePlugin | null = null;
 
 function genCellCommand(callbackIfInCell: (editor: Editor, view: MarkdownView, parentEditor: EditorView) => void) {
 	return function (checking: boolean, editor: Editor, view: MarkdownView) {
@@ -1081,10 +1351,11 @@ function genCellCommand(callbackIfInCell: (editor: Editor, view: MarkdownView, p
 }
 
 export default class GridTablePlugin extends Plugin {
+	static instance: GridTablePlugin | null = null;
 	settings: GridTablePluginSettings;
 
 	async onload() {
-		globalPlugin = this;
+		GridTablePlugin.instance = this;
 		await this.loadSettings();
 		this.registerEditorExtension(nestedEditorsFacet.of(new ObsidianEditorStorage(this)))
 		this.registerEditorExtension(tableField);
@@ -1259,7 +1530,7 @@ export default class GridTablePlugin extends Plugin {
 	}
 
 	onunload() {
-
+		GridTablePlugin.instance = null;
 	}
 
 	async loadSettings() {
@@ -1286,7 +1557,17 @@ class GridTableSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setHeading()
-			.setName("Grid Tables")
-			.setDesc("No settings yet! Soon™");
+			.setName("Grid Tables");
+
+		new Setting(containerEl)
+			.setName("Enable opinionated column sizes")
+			.setDesc("When enabled, column widths are stored as visual hints so you can shrink columns below their longest line length.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.opinionatedSizes)
+					.onChange(async (value) => {
+						this.plugin.settings.opinionatedSizes = value;
+						await this.plugin.saveSettings();
+					});
+			});
 	}
 }

@@ -1,10 +1,5 @@
 /*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
+This CSS file styles the grid-tables editor widget and its controls.
 */
 
 .obsidian-grid-tables-table-source {
@@ -14,6 +9,11 @@ If your plugin does not need CSS, delete this file.
 
 .obsidian-grid-tables-table {
     border-collapse: collapse;
+    /* Use fixed layout so column widths follow our explicit CSS widths rather than
+       being reflowed proportionally when the container size changes. */
+    table-layout: fixed;
+    /* Keep the table at its intrinsic width; let the container handle scrolling. */
+    width: max-content;
 }
 
 .obsidian-grid-tables-cell {
@@ -21,41 +21,90 @@ If your plugin does not need CSS, delete this file.
     border-collapse: collapse;
     padding: 0.5em;
     vertical-align: top;
+    position: relative;
 }
 
+.obsidian-grid-tables-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    width: 4px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 10;
+}
+
+.obsidian-grid-tables-resize-handle:hover {
+    background-color: var(--interactive-accent);
+    opacity: 0.4;
+}
+
+/* The container reserves a small gutter on the right and bottom for hot-zones */
 .obsidian-grid-tables-container {
+    /* Gutters are customizable via CSS vars to keep offsets in sync */
+    --gt-gutter-right: 19px;
+    --gt-gutter-bottom: 19px;
+
     display: flex;
     position: relative;
     width: fit-content;
+    padding-right: var(--gt-gutter-right);
+    padding-bottom: var(--gt-gutter-bottom);
+    /* Ensure children can render fully if they sit near the edge */
+    overflow: visible;
 }
 
+/* Generic hot-zone button styling */
 .obsidian-grid-tables-table-button {
-    border: 1px solid #333;
-    color: #333;
-    font-size: 1.5em;
+    border: 1px solid var(--background-modifier-border);
+    color: var(--text-muted);
+    background-color: var(--background-modifier-hover);
+    font-size: 1.1em;
     display: flex;
     justify-content: center;
     align-items: center;
     user-select: none;
     position: absolute;
+    z-index: 50;
+    cursor: pointer;
+    border-radius: 6px;
+    line-height: 1;
+    box-sizing: border-box; /* avoid clipping due to border */
+
+    /* Appear on hover only */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+}
+
+/* Reveal on container hover */
+.obsidian-grid-tables-container:hover .obsidian-grid-tables-table-button {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .obsidian-grid-tables-table-button:hover {
-    border: 1px solid #666;
-    color: #666;
+    border-color: var(--interactive-accent);
+    color: var(--interactive-accent);
 }
 
+/* Right-side hot zone: narrow vertical bar inside the container gutter */
 .obsidian-grid-tables-table-button.obsidian-grid-tables-add-col-button {
-    border-left: 0;
     top: 0;
-    inset-inline-start: 100%;
-    border-inline-start: none;
-    height: 100%;
+    /* keep clear of the bottom gutter so it doesn't overlap the add-row button */
+    bottom: var(--gt-gutter-bottom);
+    /* keep the button fully inside the container to avoid CM clipping */
+    right: 2px;
+    width: 16px;            /* narrow vertical hot zone */
 }
 
+/* Bottom hot zone: short horizontal bar inside the container gutter */
 .obsidian-grid-tables-table-button.obsidian-grid-tables-add-row-button {
-    border-top: 0;
-    top: 100%;
-    width: 100%;
+    left: 0;
+    right: var(--gt-gutter-right); /* leave room for right gutter/hot-zone */
+    /* keep the button fully inside the container to avoid CM clipping */
+    bottom: 2px;
+    height: 16px;           /* smaller than empty-row height */
     flex-direction: row;
 }

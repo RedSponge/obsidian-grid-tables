@@ -1,14 +1,18 @@
 import { TableCell, TableContent, TableRow } from "./TableData";
 
 class SeparatorLine {
-    columnLengths: number[]
+    columnLengths: number[];
+    // Optional visual widths for each column; used only as layout hints,
+    // not for parsing. When null, no explicit visual widths are encoded.
+    visualWidths: number[] | null;
 
-    constructor(columnIndices: number[]) {
+    constructor(columnIndices: number[], visualWidths: number[] | null = null) {
         if (columnIndices.length < 1) {
             throw new Error("columnIndices must not be empty!");
         }
 
         this.columnLengths = columnIndices;
+        this.visualWidths = visualWidths;
     }
 
     equals(other: SeparatorLine) {
@@ -16,29 +20,82 @@ class SeparatorLine {
     }
 
     toString() {
-        return `SeparatorLine([${this.columnLengths}])`
+        return `SeparatorLine([${this.columnLengths}])`;
     }
 
     toStringRepr() {
-        const parts = [];
-        for (const length of this.columnLengths) {
-            parts.push("-".repeat(length));
+        const parts: string[] = [];
+        const visual = this.visualWidths;
+
+        for (let i = 0; i < this.columnLengths.length; i++) {
+            const length = this.columnLengths[i];
+            const dashes = "-".repeat(length);
+            let suffix = "";
+
+            if (visual && visual[i] != null && !Number.isNaN(visual[i])) {
+                suffix = visual[i].toString();
+            }
+
+            parts.push(dashes + suffix);
         }
 
-        return `+${parts.join("+")}+`
+        return `+${parts.join("+")}+`;
     }
 
     static tryParse(line: string): SeparatorLine {
-        if (!line.match(/^\+(-+\+)+$/)) {
-            throw new Error("Line doesn't match format! Should look like this: '+--+---+-+'!")
+        // Accept either the legacy form '+--+---+-+' or an extended form
+        // '+--10+---20+-+' where numeric suffixes after the dashes encode
+        // visual widths.
+        if (!line.startsWith("+") || !line.endsWith("+")) {
+            throw new Error("Line doesn't match format! Should look like this: '+--+---+-+'!");
         }
 
-        const lengths = line
-            .split("+")
-            .slice(1, -1)
-            .map((s) => s.length);
+        const columnLengths: number[] = [];
+        const visualWidths: (number | null)[] = [];
 
-        return new SeparatorLine(lengths);
+        let i = 1; // start after leading '+'
+        while (i < line.length - 1) {
+            // Parse one column segment of the form -+ or -<digits>+
+            let dashCount = 0;
+            while (i < line.length - 1 && line[i] === "-") {
+                dashCount++;
+                i++;
+            }
+
+            if (dashCount === 0) {
+                throw new Error("Line doesn't match format! Should look like this: '+--+---+-+'!");
+            }
+
+            // Optional numeric suffix for visual width
+            let widthDigits = "";
+            while (i < line.length - 1 && /[0-9]/.test(line[i])) {
+                widthDigits += line[i];
+                i++;
+            }
+
+            if (line[i] !== "+") {
+                throw new Error("Line doesn't match format! Should look like this: '+--+---+-+'!");
+            }
+
+            columnLengths.push(dashCount);
+            if (widthDigits.length > 0) {
+                visualWidths.push(parseInt(widthDigits, 10));
+            } else {
+                visualWidths.push(null);
+            }
+
+            i++; // skip '+'
+        }
+
+        if (columnLengths.length === 0) {
+            throw new Error("Line doesn't match format! Should look like this: '+--+---+-+'!");
+        }
+
+        // If there are no numeric hints at all, keep visualWidths as null
+        const hasVisual = visualWidths.some((v) => v !== null);
+        const visual = hasVisual ? visualWidths.map((v) => (v == null ? 0 : v)) : null;
+
+        return new SeparatorLine(columnLengths, visual);
     }
 }
 
@@ -229,57 +286,96 @@ function tryParseTableFromParsedParts(parts: (SeparatorLine | ContentLine)[]): T
     return validSpecToTableContent(parts);
 }
 
-function tableContentToString(table: TableContent) {
-    const colWidths = [];
+function tableContentToString(table: TableContent, baseSeparatorWidths?: number[], visualWidths?: number[]) {
+	// colContentWidths holds the maximum visible content length per column (ignoring any padding).
+	const colContentWidths: number[] = [];
 
-    for (const row of table.rows) {
-        for (let colIdx = 0; colIdx < row.cells.length; colIdx++) {
-            if (colWidths.length <= colIdx) {
-                colWidths.push(0);
-            }
-            const lines = row.cells[colIdx].content.split(/\n/);
-            const lineLengths = lines.map((l) => l.length);
-            const maxLineLength = Math.max(...lineLengths);
+	for (const row of table.rows) {
+		for (let colIdx = 0; colIdx < row.cells.length; colIdx++) {
+			if (colContentWidths.length <= colIdx) {
+				colContentWidths.push(0);
+			}
+			const lines = row.cells[colIdx].content.split(/\n/);
+			const lineLengths = lines.map((l) => l.length);
+			const maxLineLength = Math.max(...lineLengths);
 
-            if (maxLineLength > colWidths[colIdx]) {
-                colWidths[colIdx] = maxLineLength;
-            }
-        }
-    }
+			if (maxLineLength > colContentWidths[colIdx]) {
+				colContentWidths[colIdx] = maxLineLength;
+			}
+		}
+	}
 
-    const paddedColWidths = colWidths.map((w) => {
-        if (w == 0) return 1;
-        else return w + 2;
-    });
-    const parts: (ContentLine | SeparatorLine)[] = [];
+	let separatorWidths: number[];
+	if (baseSeparatorWidths && baseSeparatorWidths.length > 0) {
+		// Respect the separator widths we were given, but never make them
+		// smaller than the actual content width + padding so the table always parses.
+		separatorWidths = [];
+		for (let colIdx = 0; colIdx < colContentWidths.length; colIdx++) {
+			const contentWidth = colContentWidths[colIdx] || 0;
+			let sepWidth = baseSeparatorWidths[colIdx] ?? 0;
 
-    for (const row of table.rows) {
-        parts.push(new SeparatorLine(paddedColWidths));
-        const rowLines = row.cells.map((cell) => cell.content.split("\n"));
-        const numRows = Math.max(...rowLines.map((line) => line.length))
+			if (sepWidth <= 0) {
+				// Fall back to the original behaviour for columns that don't have
+				// an explicit base width.
+				sepWidth = contentWidth == 0 ? 1 : contentWidth + 2;
+			} else {
+				// Ensure separator is at least as wide as content.
+				// The minimum viable width is contentWidth itself (for tight fit),
+				// but we need room for the padding spaces too.
+				const minRequired = contentWidth === 0 ? 1 : contentWidth + 2;
+				if (sepWidth < minRequired) {
+					sepWidth = minRequired;
+				}
+			}
 
-        for (let innerRowIdx = 0; innerRowIdx < numRows; innerRowIdx++) {
-            const rowParts = [];
-            for (let colIdx = 0; colIdx < rowLines.length; colIdx++) {
-                const lines = rowLines[colIdx];
-                const part = lines[innerRowIdx] || "";
-                const paddedPart = part.padEnd(colWidths[colIdx], " ");
+			separatorWidths.push(sepWidth);
+		}
+	} else {
+		// Original behaviour: derive separator widths purely from content.
+		separatorWidths = colContentWidths.map((w) => {
+			if (w == 0) return 1;
+			else return w + 2;
+		});
+	}
 
-                rowParts.push(paddedPart);
-            }
-            parts.push(new ContentLine(rowParts));
-        }
-    }
-    parts.push(new SeparatorLine(paddedColWidths));
+	const parts: (ContentLine | SeparatorLine)[] = [];
 
-    return parts.map((v) => v.toStringRepr()).join("\n");
+	// The actual padding width available in each column is:
+	// separatorWidth - 2 (for the two spaces around content in | content |).
+	// But if separator is only 1 character, we write | | with no content space.
+	const paddingWidths: number[] = separatorWidths.map((sw) => (sw <= 1 ? 0 : sw - 2));
+
+	// Visual widths are purely hints for layout; do not affect parsing.
+	const visual = visualWidths && visualWidths.length > 0 ? visualWidths : null;
+
+	for (const row of table.rows) {
+		parts.push(new SeparatorLine(separatorWidths, visual));
+		const rowLines = row.cells.map((cell) => cell.content.split("\n"));
+		const numRows = Math.max(...rowLines.map((line) => line.length))
+
+		for (let innerRowIdx = 0; innerRowIdx < numRows; innerRowIdx++) {
+			const rowParts = [];
+			for (let colIdx = 0; colIdx < rowLines.length; colIdx++) {
+				const lines = rowLines[colIdx];
+				const part = lines[innerRowIdx] || "";
+				// Pad to the available space in the column.
+				const paddedPart = part.padEnd(paddingWidths[colIdx], " ");
+
+				rowParts.push(paddedPart);
+			}
+			parts.push(new ContentLine(rowParts));
+		}
+	}
+	parts.push(new SeparatorLine(separatorWidths, visual));
+
+	return parts.map((v) => v.toStringRepr()).join("\n");
 }
 
 export {
-    SeparatorLine,
-    ContentLine,
-    lookAheadForTableParts,
-    isValidTableSpec,
-    tryParseTableFromParsedParts,
-    tableContentToString,
+	SeparatorLine,
+	ContentLine,
+	lookAheadForTableParts,
+	isValidTableSpec,
+	tryParseTableFromParsedParts,
+	tableContentToString,
 }
